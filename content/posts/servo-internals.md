@@ -34,7 +34,7 @@ So I kindly ask you to treat this guide merely as a hint.
 (This means that I'd appreciate your pointing out errors a great deal! Simply
 open an issue or a pull request on this site's repo and I'll update it ASAP.)
 
-## Table of content
+## Table of contents
 
 This is an in-progress series, entries will (hopefully) be constantly added and
 updated.
