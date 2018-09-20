@@ -16,13 +16,14 @@ There are currently four ways in which a URL may be loaded:
 - when the user clicks on a link or a script navigates the page (both are
   handled by the script thread);
 - when the user types a URL (this is handled by the compositor);
-- and finally the WebDriver can initiate URL loads.
+- and finally the WebDriver can also initiate URL loads.
 
 What all four have in common is that they're routed through the `Constellation`,
-which orchestrates most operations for Servo.
+which orchestrates most operations in Servo.
 
-However, each case boils down to one of two execution paths. Therefore I'm only
-going to cover these two cases, and abstract away the minor differences.
+However, each case boils down to one of two execution paths, which eventually
+coalesce. Therefore I'm only going to cover these two cases, and abstract away
+the minor differences.
 
 ## New top-level browsing context
 
@@ -39,8 +40,8 @@ like the window size, the `LoadData` instance (which besides the URL includes
 other metadata, like the HTTP headers, data, referrer policy, referrer URL, and
 others), the `PipelineId` for the `Pipeline` of this page, among others.
 Then, it proceeds to create this pipeline by calling
-`Constellation::new_pipeline` and creates a `SessionHistoryChange` with
-`Constellation::add_pending_change`.  But before delving into these two
+`Constellation::new_pipeline` and also creates a `SessionHistoryChange` with
+`Constellation::add_pending_change`. But before delving into these two
 functions, let's first examine the other major case that leads to calling the
 same two functions.
 
@@ -57,15 +58,15 @@ larger picture).
 
 One very important distinction from the previous case is that `load_url` is
 *always* invoked in an existing browsing context. However, you'll find that no
-hard asserts are made, as it is prefered not to panic in `Constellation` and
+hard asserts are made, as it is preferred not to panic in `Constellation` and
 instead issue a `warn!` message and return early from the method.
 
-There are two further subcases within this method. In the first case, the
+There are two further sub-cases within this method. In the first case, the
 pipeline that initiated the load is located in an iframe (which is a nested
 browsing context), or it's in a top-level browsing context (i.e. a window or
 tab).
 
-### Loading URL in an Iframe
+### Loading URL in an IFrame
 
 In the first case, the constellation sends a `ConstellationControlMsg::Navigate`
 message to the event loop of the pipeline that encapsulates this iframe (that
@@ -74,22 +75,24 @@ is, it is the iframe's browsing context's parent, as reflected by
 `ScriptThread::handle_navigate`, which first looks for the iframe this load
 targets among `ScriptThread::documents`, where all documents handled by this
 `ScriptThread` are stored, and issues
-`HTMLIFrameElement::navigate_or_reload_child_browsing_context`.
+`HTMLIFrameElement::navigate_or_reload_child_browsing_context` on the iframe
+instance. 
 
-There are two cases when loading in an iframe: the initial `about:blank` load,
-which occurs when first constructing the iframe, and when the iframe already
-exists and a "regular" URL is being loaded. I'll not examine the first case for
-now as this is involved enough to deserve its own post and the point of this one
-is to examine URL loads. Thus, this method is invoked with the argument
-`NavigationType::Regular` which, after setting up some data, sends
-a `ScriptMsg::ScriptLoadedURLInIFrame` to `Constellation`.
+This method is invoked with the argument `NavigationType::Regular`. This is
+important because there are two cases when loading a page in an iframe: the
+initial `about:blank` load, which occurs when first constructing the iframe, and
+when the iframe already exists and a "normal" page is being loaded. I'm not
+going to examine the first case for now as this is involved enough to deserve
+its own post and the point of this one is to examine "normal" page loads. So
+this method, after setting up some data, sends a
+`ScriptMsg::ScriptLoadedURLInIFrame` to `Constellation`.
 
 This in turn is handled by
 `Constellation::handle_script_loaded_url_in_iframe_msg`, which spawns a new
-`Pipeline` in this iframe's browsing context with `Constellation::new_pipeline`,
+`Pipeline` for the iframe's browsing context with `Constellation::new_pipeline`,
 inheriting the properties (such as private browsing mode, visibility, and others
-from the existing browsing context), and a `SessionHistoryChange` is created
-with via `Constellation::add_pending_change`.
+from the existing browsing context), and as above, a `SessionHistoryChange` is
+created via `Constellation::add_pending_change`.
 
 It's perhaps important to point out that at this point the page the URL is
 referring to isn't actually loaded, as perhaps the "loaded URL" names may
@@ -104,7 +107,7 @@ change for this browsing context. This is why trying to click on a link when
 a page is already loading, the browser stubbornly ignores it and sticks to
 loading the first page you clicked on. The load is also disregarded if the
 pipeline is inactive, but let's get back to this in another blog post (TODO or
-if it's short enough we could explain it here). Then, depending
+if it's short enough we could explain it here). Then, depending TODO
 
 TODO replace?
 
@@ -131,20 +134,20 @@ fulfilled.
 
 Then, `Pipeline::spawn` is invoked with this optional `EventLoop`, many fields
 from `Constellation`, and a bunch of load specific arguments passed to
-`new_pipeline` itself (like the browsing context and pipeline IDs, whether the
-page was loaded in private browsing mode, the `LoadData`, and others--best to
-look at the relevant code for details). More details follow in a bit.
+`new_pipeline` (like the browsing context and pipeline IDs, whether the page was
+loaded in private browsing mode, the `LoadData`, and others--best to look at the
+relevant code for details). More details follow in a bit.
 
 In each of the two cases, `Constellation::add_pending_change` is called to add
 a `SessionHistoryChange` object to the `Constellation::pending_changes` hash
 map, which is used to later retrieve information about this load when the
 document becomes active. This is necessary because a page load is asynchronous
 and we need a way to maintain state until a message from script thread
-indicating traversal maturation is received by constellation. Among others, this
-object holds a `NewBrowsingContextInfo` field wrapped in an `Option`, which is
-used to indicate that the pending change introduces a new browsing context (used
-in the case of creating a new top-level browsing context), or `None` if the page
-load was kicked off in an exiting browsing context.
+indicating traversal maturation is received. Among others, this object holds a
+`NewBrowsingContextInfo` field wrapped in an `Option`, which is used to indicate
+that the pending change introduces a new browsing context (used in the case of
+creating a new top-level browsing context or new iframes, which is not covered
+here), or `None` if the page load was kicked off in an exiting browsing context.
 
 ### Pipeline
 
@@ -154,10 +157,11 @@ JavaScript event loop. More broadly speaking, it acts as a document's frontend
 for `Constellation`.
 
 Each `Pipeline` has an event loop and a layout thread. Multiple `Pipeline`s may
-share the same event loop (script thread) if their document shares the same
-host, so as to enable them to become same-origin via `document.domain`, but in
-all cases each `Pipeline` has its own layout thread, responsible for rendering
-the page.
+share the same event loop (`ScriptThread`) if their document shares the same
+host, so as to enable them to become same-origin via `document.domain` (though
+there is ongoing discussion on whether this is the desired behaviour in
+[#21206](https://github.com/servo/servo/issues/21206)), but in all cases each
+`Pipeline` has its own layout thread, responsible for rendering the page.
 
 #### Spawning a Pipeline
 
@@ -170,40 +174,42 @@ called, which starts the layout and script threads (with `LayoutThread::create`
 and `ScriptThread::create`, respectively). TODO expand on multiprocess
 
 `ScriptThread::create` spawns a new thread on which the event loop will be run.
-But before that, `ScriptThread::pre_page_load` is invoked, which sets up the
-request and sends a `ScriptMsg::InitiateNavigateRequest` to `Constellation`.
+But before starting the event loop, `ScriptThread::pre_page_load` is invoked,
+which sets up the request and sends a `ScriptMsg::InitiateNavigateRequest` to
+`Constellation`.
 
 This then is handled by `Constellation::handle_navigate_request`, which sets ups
 a `NetworkListener` and invokes `initiate_fetch` on it. Confusingly, there are
-two classes with the same name, but this one uses the one found inside the
+two classes with the same name, but this the one found inside the
 `constellation` folder.
 
 ### Fetch
 
-`Constellation` uses the mspc channel pairs `network_listener_sender` and
-`network_listener_receiver` to communicate with the asynchronous fetch
+`Constellation` uses the `mspc` channel pairs, `network_listener_sender` and
+`network_listener_receiver`, to communicate with the asynchronous fetch
 operation. `NetworkListener::initiate_fetch` is passed
 `network_listener_sender`, which it routes through an IPC router. I'm not 100%
 sure but I believe this is because the resource thread may choose to execute the
-fetch operation in another process.  Thus we need a uniform way to send messages
-between threads and/or processes, and as such the IPC router is used to handle
-this.
+fetch operation in another process, and therefore we need a uniform way to send
+messages between threads and/or processes, and as such the IPC router is used to
+handle this.
 
 TODO could a `CoreResourceMsg::FetchRedirect` msg be sent as well in the case of
 `load_url`?
 
-Then, `initiate_fetch` sends a `CoreResourceMsg::Fetch`, with the request
-dataand the IPC sender routed to `Constellation::network_listener_receiver`, to
-the public resource thread (responsible for abstracting away IO operations).
-This message is processed by `CoreResourceManager::fetch` which spawns *yet
-another thread* and calls `fetch/methods.rs:fetch`.
+Then, `NetworkListener::initiate_fetch` sends to the public resource thread
+(responsible for abstracting away IO operations) a `CoreResourceMsg::Fetch`,
+with the request data and the IPC sender (routed to
+`Constellation::network_listener_receiver`). This message is processed by
+`CoreResourceManager::fetch` which spawns *yet another thread* and calls
+`fetch/methods.rs:fetch`.
 
 All of this is rather involved with lots of details (such as the CORS preflight
-fetch)--and at the time of writing this post, unfinished--, so I'm skipping
-a lot of it so as not to get swamped by the minutiae. For the purposes of this
-post the most interesting step is the `scheme_fetch` function, which depending
-on the URL scheme ('data', 'http', 'about:blank', 'file' etc) launches
-a different fetch operation.
+fetch and many other steps)--and at the time of writing this post, unfinished--,
+so I'm skipping a lot of it so as not to get swamped by the minutiae. For the
+purposes of this post the most interesting step is the `scheme_fetch` function,
+which depending on the URL scheme ('data', 'http', 'about:blank', 'file' etc)
+launches different fetch operations.
 
 One thing worth expounding on that had initially confused me is that the
 `IpcSender` passed to the resource thread and then to `fetch/methods.rs:fetch`
@@ -221,9 +227,9 @@ then passed to the sender (named `target`, presumably due to `FetchTaskTarget`)
 and at various points the `process_response`, `process_response_eof`,
 `process_request_body`, and `process_request_eof` `FetchTaskTarget` trait
 methods are invoked. Each method sends a `FetchResponseMsg` message of the same
-name (but in CamelCase) to the `Constellation`, which immediately (without any
-processing at all) forwards them to `ScriptThread` wrapped in
-a `ConstellationControlMsg::NavigationResponse(PipelineId, FetchResponseMsg)`.
+name as the trait method (but in CamelCase) to the `Constellation`, which
+without any processing at all forwards it to `ScriptThread` wrapped in a
+`ConstellationControlMsg::NavigationResponse(PipelineId, FetchResponseMsg)`.
 Let's see how each of them is handled by script:
 
 #### `ProcessResponse`
@@ -234,13 +240,13 @@ Let's see how each of them is handled by script:
 
 So this part is a bit weird: since each thread only runs a single
 `ScriptThread`, a pointer to the instance is set in a file global thread local
-variable. I'm guessing this is so that methods outside `ScriptThread` need not
-be passed a reference to the actual `ScriptThread`, which would couple code more
-tightly and probably mess with the borrow-checker as well. This allows
-`process_response` to invoke the static method
-`ScriptThread::page_headers_available`, which retrieves the `ScriptThread`
-instance running on this thread and invokes `handle_page_headers_available` on
-it.
+variable. I'm guessing this is so that methods outside `ScriptThread` (like the
+parser) need not be passed a reference to the actual `ScriptThread`, which would
+couple code more tightly and probably mess with the borrow-checker as well. This
+allows `process_response` to invoke the static method
+`ScriptThread::page_headers_available`, which retrieves a reference to the
+`ScriptThread` instance running on this thread, and invokes
+`handle_page_headers_available` on it.
 
 Then, `ScriptThread::load` is invoked, which is the entry point to loading
 a document. It defines bindings, sets up the `Window`, `WindowProxy`, and
@@ -251,23 +257,23 @@ important in our case is the `ScriptMsg::ActivateDocument` message sent to the
 ##### Applying session history change
 
 `Constellation::handle_activate_document_msg` is invoked on the other side of
-the channel, which if the load is targeting an iframe, notifies the iframe's
-parent pipeline that the document changed. Then, `change_session_history` is
-invoked. If the currently focused pipeline is the same as, or the child of the
-one where the load is occurring, the focused pipeline is changed to the one
-which is loading the page.
+the channel. If the load is targeting an iframe, the iframe's parent pipeline is
+notified that the document changed. Then, `change_session_history` is invoked.
+If the currently focused pipeline is the same as, or the child of the one where
+the load is occurring, the focused pipeline is changed to the one which is
+loading the page.
 
 If this load is the very first pipeline for its browsing context (i.e. in a new
-window or iframe), then that browsing context does not exist yet and will be
-created now. Recall all the information pertaining to a load placed into
+window or iframe), then that browsing context does not exist yet and is created
+now. Recall all the information pertaining to a load stored in
 `SessionHistoryChange`? That change is retrieved (in the previous method) and
 its fields are passed to `new_browsing_context` to create the `BrowsingContext`.
-This inserts the new browsing context in the `browsing_contexts` map and if the
-load targets an iframe, the browsing context is inserted into its parent
-pipeline's iframe list (`Pipeline::children`). The document's activity is also
-set after `new_browsing_context`. A document (or from `Constellation`'s point of
-view, the `Pipeline`) can be in three states: inactive, active, and fully
-active. This is explained in the [living
+This inserts the new browsing context in `Constellation`'s' `browsing_contexts`
+map and if the load targets an iframe, the browsing context is inserted into its
+parent pipeline's iframe list (`Pipeline::children`). The document's activity is
+also set after `new_browsing_context`. A document (or from `Constellation`'s
+point of view, the `Pipeline`) can be in three states: inactive, active, and
+fully active. This is explained in the [living
 standard](https://html.spec.whatwg.org/multipage/browsers.html#fully-active]).
 A notification is sent to embedder that the browsing context's history has
 changed. 
@@ -278,9 +284,9 @@ its current entry is updated to be this one. Then, the current document is
 [unloaded](https://html.spec.whatwg.org/multipage/#unload-a-document).
 
 Further, each `SessionHistoryChange` has an optional `replace` field which
-describes whether the pipeline the load is replacing needs to be replaced. (TODO
-check which sessionhistorychanges get such a replace field.)
-If change has such a field and it's an enum with the variant
+describes whether the pipeline the load is replacing needs to be replaced.
+`replace` is only not `None` if the load was initiated in an existing browsing
+context. If change has such a field and it's an enum with the variant
 `NeedsToReload::No(pipeline_id)`, meaning the pipeline hasn't been closed yet,
 it is closed now.
 
@@ -314,11 +320,11 @@ thus dropped until a response arrives after calling `Pipeline::exit`, which
 sends a `CompositorMsg::PipelineExited` message to the compositor and
 a `ConstellationControlMsg::ExitPipeline` to the script thread.
 
-`ScriptThread::handle_exit_pipeline_msg` picks up the yarn on the other side of
-the `ConstellationControlMsg::ExitPipeline` message, and it first removes any
+`ScriptThread::handle_exit_pipeline_msg` picks it up on the other side of the
+`ConstellationControlMsg::ExitPipeline` message, and it first removes any
 incomplete loads associated with this pipeline, then it shuts down pipeline's
-layout thread before removing the document.  Finally,
-a `ScriptMsg::PipelineExited` message is sent back to the constellation, which
+layout thread before removing the document. Finally, a
+`ScriptMsg::PipelineExited` message is sent back to the constellation, which
 removes the pipeline from `Constellation::pipelines`.
 
 ##### Trimming the history
@@ -332,9 +338,9 @@ stay in memory is retrieved from the preferences ("session-history.max-length")
 and the same number of fewer pipelines are taken from the past history, then the
 same number is taken from the future history. Then we iterate over these
 pipelines and close each with `close_pipeline`, as before. Finally, some
-bookkeeping is performend and the closed pipelines are updated in the
+bookkeeping is performed and the closed pipelines are updated in the
 `JointSessionHistory` so that they are marked as dead and need to be reloaded
-the next time the history is navigated.
+the next time they're traversed.
 
 For some reason, `notify_history_changed` is invoked again, which means it's
 invoked twice in both cases--once above in each case, and once after the
@@ -347,9 +353,9 @@ compositor (i.e. embedder).
 `ScriptThread::handle_fetch_chunk`, as `handle_fetch_metadata` above, finds the
 `ParserContext` for this `Pipeline` and invokes
 `ParserContext::process_response_chunk`, after which we eventually end up in
-`ParserContext::do_parse_sync`. This does the parsing heavy-lifting and if the
-the entire response body was received, `ParserContext::finish` is invoked.
-Otherwise, we wait for more chunks or an explicit EOF signal.
+`ParserContext::do_parse_sync`. This does the heavy-lifting and if the entire
+response body was received, `ParserContext::finish` is invoked.  Otherwise, we
+wait for more chunks or an explicit EOF signal.
 
 #### `ProcessResponseEOF`
 
@@ -358,23 +364,35 @@ Otherwise, we wait for more chunks or an explicit EOF signal.
 here, too, we end up in `do_parse_sync`.
 
 This time, however, if nothing went wrong and the parser is not suspended, the
-`finish` member function is invoked, which sets the document's read state to
-interactive, clears the docuemnt's parser, and invokes `Document::finish_load`.
-Unless the document loader is blocked (TODO what does this mean?), the same way
-as above, `ScriptThread::mark_document_with_no_blocked_loads` is invoked, which
-is a static function and merely inserts this document into
+`finish` member is invoked, which sets the document's read state to interactive,
+clears the document's parser, and invokes `Document::finish_load`. Unless the
+document loader is blocked (TODO what does this mean?), the same way as above,
+`ScriptThread::mark_document_with_no_blocked_loads` is invoked, which is a
+static function and merely inserts this document into
 `ScriptThread::docs_with_no_blocking_loads`.
 
 The interesting thing is that the document is not immediately finalized, because
-there may be other events the script thread need process first. Thus, in its
-event loop (`ScriptThread::start`) the `handle_msgs` is invoked until shutdown.
-This does a bunch of things not (directly) related to this blog post right now,
-so I'm skipping over to the part where this document (and others) are dequeued
-from `docs_with_no_blocking_loads` and `maybe_queue_document_completion` member
-is invoked on them. This again does a whole host of things, but the important bits are that the document state is set to complete (`DocumentReadyState::Complete`), the window is reflowed and scrolled to a fragment if present in the URL, and the constellation is notified of the document load, via `ScriptMsg::LoadComplete`.
+there may be other events the script thread need process first. The event loop
+is run in `ScriptThread::start`, continuously invoking `handle_msgs` until
+shutdown. This does a bunch of things not (directly) related to this blog post
+right now, so I'm skipping over to the part where this `Document` and
+potentially others are dequeued from `ScriptThread::docs_with_no_blocking_loads`
+and `Document::maybe_queue_document_completion` method is invoked on them. This
+again does a whole host of things, but the important bits are that the document
+state is set to complete (`DocumentReadyState::Complete`), the window is
+reflowed and scrolled to a fragment if present in the URL, and the constellation
+is notified of the document load, via `ScriptMsg::LoadComplete`.
 
-This is received by `Constellation::handle_load_complete_msg`. If the load occurred in a top-level browsing context, the embedder is notified that its document finished loading. Otherwise it's an iframe and `handle_subframe_loaded` is called. This sends a `ConstellationControlMsg::DispatchIFrameLoadEvent` to iframe's parent pipeline's event loop.
+This is received by `Constellation::handle_load_complete_msg`. If the load
+occurred in a top-level browsing context, the embedder is notified that its
+document finished loading. Otherwise it's an iframe and `handle_subframe_loaded`
+is called. This sends a `ConstellationControlMsg::DispatchIFrameLoadEvent` to
+iframe's parent pipeline's event loop.
 
-`ScriptThread::handle_iframe_load_event` takes over, and finds the iframe's encompassing `Document`, then the `HTMLIFrameElement` itself and invokes `iframe_load_event_steps` on it. This fires the load event for the iframe, terminates the `LoadBlocker` (TODO what's this?) and issues a window reflow.
+`ScriptThread::handle_iframe_load_event` takes over, and finds the iframe's
+encompassing `Document`, then the `HTMLIFrameElement` itself and invokes
+`iframe_load_event_steps` on it. This fires the load event for the iframe,
+terminates the `LoadBlocker` (TODO what's this?) and issues a window reflow.
 
-Done
+As far as I can tell, the above detail most of the steps necessary to load a
+page in Servo.
