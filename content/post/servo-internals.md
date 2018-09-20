@@ -43,4 +43,5 @@ updated.
 
 <!--- Bootstrapping Servo-->
 <!--- Creating an IFrame-->
-- [Loading a URL](https://mandreyel.github.io/posts/servo-internals-load-url)
+
+- [Loading a URL](/post/servo-internals-load-url)
