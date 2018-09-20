@@ -32,7 +32,7 @@ However, each case boils down to one of two execution paths, which eventually
 coalesce. Therefore I'm only going to cover these two cases, and abstract away
 the minor differences.
 
-### New top-level browsing context
+### I. New top-level browsing context
 
 Let's examine the first case, when a page is loaded for the first time (that is,
 no browsing context exists), up until the point when the `Pipeline` for this
@@ -53,7 +53,7 @@ functions, let's first examine the other major case that leads to calling the
 same two functions.
 
 
-### {FromScriptMsg, FromCompositor, WebDriverCommandMsg}::LoadUrl
+### II. {FromScriptMsg, FromCompositor, WebDriverCommandMsg}::LoadUrl
 
 In the second case--where either a typed URL, a click on a link (either by user
 or some script), or a WebDriver command initiates a page load--is all handled by
@@ -73,7 +73,7 @@ pipeline that initiated the load is located in an iframe (which is a nested
 browsing context), or it's in a top-level browsing context (i.e. a window or
 tab).
 
-#### Loading URL in an IFrame
+#### a) Loading a URL in an IFrame
 
 In the first case, the constellation sends a `ConstellationControlMsg::Navigate`
 message to the event loop of the pipeline that encapsulates this iframe (that
@@ -107,7 +107,7 @@ suggest. Instead, the load is merely *initiated*. Perhaps
 `ScriptInitiatedIFrameURLLoad` and `handle_script_iframe_url_load_start` would
 be less ambiguous names, but I'm not sure.
 
-#### Loading URL in a top-level browsing context
+#### b) Loading a URL in a top-level browsing context
 
 In the second case, the code first makes sure that there is no other pending
 change for this browsing context. This is why trying to click on a link when
@@ -192,14 +192,13 @@ two classes with the same name, but this the one found inside the
 
 ### Fetch
 
-`Constellation` uses the `mspc` channel pairs, `network_listener_sender` and
+`Constellation` uses its `mspc` channel pairs, `network_listener_sender` and
 `network_listener_receiver`, to communicate with the asynchronous fetch
 operation. `NetworkListener::initiate_fetch` is passed
 `network_listener_sender`, which it routes through an IPC router. I'm not 100%
-sure but I believe this is because the resource thread may choose to execute the
-fetch operation in another process, and therefore we need a uniform way to send
-messages between threads and/or processes, and as such the IPC router is used to
-handle this.
+sure but I believe this is because the resource thread may be running in another
+process, and therefore we need a uniform way to send messages between threads
+and/or processes, and as such the IPC router is used to handle this.
 
 TODO could a `CoreResourceMsg::FetchRedirect` msg be sent as well in the case of
 `load_url`?
@@ -211,12 +210,11 @@ with the request data and the IPC sender (routed to
 `CoreResourceManager::fetch` which spawns *yet another thread* and calls
 `fetch/methods.rs:fetch`.
 
-All of this is rather involved with lots of details (such as the CORS preflight
-fetch and many other steps)--and at the time of writing this post, unfinished--,
-so I'm skipping a lot of it so as not to get swamped by the minutiae. For the
-purposes of this post the most interesting step is the `scheme_fetch` function,
-which depending on the URL scheme ('data', 'http', 'about:blank', 'file' etc)
-launches different fetch operations.
+All of this is rather involved with lots of details--and at the time of writing
+this, unfinished--, so I'm skipping a lot of it so as not to get swamped by the
+minutiae. For the purposes of this post the most interesting step is the
+`scheme_fetch` function, which depending on the URL scheme ('data', 'http',
+'about:blank', 'file' etc) launches different fetch operations.
 
 One thing worth expounding on that had initially confused me is that the
 `IpcSender` passed to the resource thread and then to `fetch/methods.rs:fetch`
@@ -228,18 +226,16 @@ but `FetchTaskTarget` is implemented for `IpcSender<FetchResponseMsg>` in
 `net_traits/lib.rs`. This is how the fetch responses are communicated to
 `Constellation`.
 
-Back to fetch, the scheme type is in fact not important for our purposes now, as
-the specific fetch implementations all return a `Response` instance, which is
-then passed to the sender (named `target`, presumably due to `FetchTaskTarget`)
-and at various points the `process_response`, `process_response_eof`,
-`process_request_body`, and `process_request_eof` `FetchTaskTarget` trait
-methods are invoked. Each method sends a `FetchResponseMsg` message of the same
-name as the trait method (but in CamelCase) to the `Constellation`, which
-without any processing at all forwards it to `ScriptThread` wrapped in a
+Back to fetch, the scheme fetch function returns a `Response` instance, which is
+then passed to one of `FetchTaskTarget` sender's `process_response`,
+`process_response_eof`, `process_request_body`, or `process_request_eof`
+methods. Each method sends a `FetchResponseMsg` message to the `Constellation`,
+which without any processing at all forwards it to `ScriptThread` wrapped in a
 `ConstellationControlMsg::NavigationResponse(PipelineId, FetchResponseMsg)`.
+
 Let's see how each of them is handled by script:
 
-#### ProcessResponse
+### > ProcessResponse
 
 `ScriptThread::handle_fetch_metadata` finds the `ParserContext` for this
 `Pipeline` and invokes `ParserContext::process_response`. This is the
@@ -261,7 +257,7 @@ a document. It defines bindings, sets up the `Window`, `WindowProxy`, and
 important in our case is the `ScriptMsg::ActivateDocument` message sent to the
 `Constellation`.
 
-##### Applying session history change
+#### Applying session history change
 
 `Constellation::handle_activate_document_msg` is invoked on the other side of
 the channel. If the load is targeting an iframe, the iframe's parent pipeline is
@@ -270,7 +266,7 @@ If the currently focused pipeline is the same as, or the child of the one where
 the load is occurring, the focused pipeline is changed to the one which is
 loading the page.
 
-###### New browsing context
+#### a) New browsing context
 
 If this load is the very first pipeline for its browsing context (i.e. in a new
 window or iframe), then that browsing context does not exist yet and is created
@@ -289,7 +285,7 @@ A document (or from `Constellation`'s point of view, the `Pipeline`) can be in
 A notification is sent to embedder that the browsing context's history has
 changed. 
 
-###### Existing browsing context
+#### b) Existing browsing context
 
 If on the other hand the load is happening in an existing browsing context, the
 new pipeline is inserted in the browsing context's session history entries
@@ -349,9 +345,9 @@ removes the pipeline from `Constellation::pipelines`.
 
 ##### Trimming the history
 
-Finally, if this load is in an existing browsing context, the session history is
-trimmed for the *top-level browsing context*, that is, *the entire frame tree*,
-with `trim_history`.
+Finally, since this load is in an existing browsing context, by calling
+`trim_history` the session history is trimmed for the *top-level browsing
+context* of the pipeline handling this load, that is, *its entire frame tree*.
 
 This is rather straight forward. The maximum number of loaded pipelines that may
 stay in memory is retrieved from the preferences ("session-history.max-length")
@@ -368,7 +364,7 @@ invoked twice in both cases--once above in each case, and once after the
 browsing context of the session change, which sends the frame tree to the
 compositor (i.e. embedder).
 
-#### ProcessResponseChunk
+### > ProcessResponseChunk
 
 `ScriptThread::handle_fetch_chunk`, as `handle_fetch_metadata` above, finds the
 `ParserContext` for this `Pipeline` and invokes
@@ -377,7 +373,7 @@ compositor (i.e. embedder).
 response body was received, `ParserContext::finish` is invoked.  Otherwise, we
 wait for more chunks or an explicit EOF signal.
 
-#### ProcessResponseEOF
+### > ProcessResponseEOF
 
 `ScriptThread::handle_fetch_eof`, like the previous two, finds the
 `ParserContext` for this `Pipeline` and invokes `process_response_eof`, and
@@ -414,7 +410,7 @@ encompassing `Document`, then the `HTMLIFrameElement` itself and invokes
 `iframe_load_event_steps` on it. This fires the load event for the iframe,
 terminates the `LoadBlocker` (TODO what's this?) and issues a window reflow.
 
-#### ProcessRequestBody and ProcessRequestEOF
+### > ProcessRequestBody and ProcessRequestEOF
 
 These are not implemented at the time of this post's writing.
 
