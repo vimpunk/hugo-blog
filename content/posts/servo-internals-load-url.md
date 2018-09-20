@@ -1,5 +1,5 @@
 ---
-title: "Servo Internals Load Url"
+title: "Servo Internals: Loading Pages"
 date: 2018-09-15T23:47:55+02:00
 draft: true
 ---
@@ -25,7 +25,7 @@ However, each case boils down to one of two execution paths, which eventually
 coalesce. Therefore I'm only going to cover these two cases, and abstract away
 the minor differences.
 
-## New top-level browsing context
+### New top-level browsing context
 
 Let's examine the first case, when a page is loaded for the first time (that is,
 no browsing context exists), up until the point when the `Pipeline` for this
@@ -46,7 +46,7 @@ functions, let's first examine the other major case that leads to calling the
 same two functions.
 
 
-## {FromScriptMsg, FromCompositor, WebDriverCommandMsg}::LoadUrl
+### {FromScriptMsg, FromCompositor, WebDriverCommandMsg}::LoadUrl
 
 In the second case--where either a typed URL, a click on a link (either by user
 or some script), or a WebDriver command initiates a page load--is all handled by
@@ -54,7 +54,7 @@ calling `Constellation::load_url` (though in the case of WebDriver there are
 a few extra steps preceding this, but they are irrelevant for understanding the
 larger picture).
 
-### The browsing context must exist
+#### The browsing context must exist
 
 One very important distinction from the previous case is that `load_url` is
 *always* invoked in an existing browsing context. However, you'll find that no
@@ -66,7 +66,7 @@ pipeline that initiated the load is located in an iframe (which is a nested
 browsing context), or it's in a top-level browsing context (i.e. a window or
 tab).
 
-### Loading URL in an IFrame
+#### Loading URL in an IFrame
 
 In the first case, the constellation sends a `ConstellationControlMsg::Navigate`
 message to the event loop of the pipeline that encapsulates this iframe (that
@@ -100,7 +100,7 @@ suggest. Instead, the load is merely *initiated*. Perhaps
 `ScriptInitiatedIFrameURLLoad` and `handle_script_iframe_url_load_start` would
 be less ambiguous names, but I'm not sure.
 
-### Loading URL in a top-level browsing context
+#### Loading URL in a top-level browsing context
 
 In the second case, the code first makes sure that there is no other pending
 change for this browsing context. This is why trying to click on a link when
@@ -232,7 +232,7 @@ without any processing at all forwards it to `ScriptThread` wrapped in a
 `ConstellationControlMsg::NavigationResponse(PipelineId, FetchResponseMsg)`.
 Let's see how each of them is handled by script:
 
-#### `ProcessResponse`
+#### ProcessResponse
 
 `ScriptThread::handle_fetch_metadata` finds the `ParserContext` for this
 `Pipeline` and invokes `ParserContext::process_response`. This is the
@@ -263,6 +263,8 @@ If the currently focused pipeline is the same as, or the child of the one where
 the load is occurring, the focused pipeline is changed to the one which is
 loading the page.
 
+###### New browsing context
+
 If this load is the very first pipeline for its browsing context (i.e. in a new
 window or iframe), then that browsing context does not exist yet and is created
 now. Recall all the information pertaining to a load stored in
@@ -271,16 +273,21 @@ its fields are passed to `new_browsing_context` to create the `BrowsingContext`.
 This inserts the new browsing context in `Constellation`'s' `browsing_contexts`
 map and if the load targets an iframe, the browsing context is inserted into its
 parent pipeline's iframe list (`Pipeline::children`). The document's activity is
-also set after `new_browsing_context`. A document (or from `Constellation`'s
-point of view, the `Pipeline`) can be in three states: inactive, active, and
-fully active. This is explained in the [living
-standard](https://html.spec.whatwg.org/multipage/browsers.html#fully-active]).
+also set after `new_browsing_context`.
+
+A document (or from `Constellation`'s point of view, the `Pipeline`) can be in
+  three states: inactive, active, and fully active. This is explained in the
+  [living
+  standard](https://html.spec.whatwg.org/multipage/browsers.html#fully-active]).
 A notification is sent to embedder that the browsing context's history has
 changed. 
 
+###### Existing browsing context
+
 If on the other hand the load is happening in an existing browsing context, the
-new pipeline is inserted in the browsing context's session history entries and
-its current entry is updated to be this one. Then, the current document is
+new pipeline is inserted in the browsing context's session history entries
+(`BrowsingContext::pipelines`) and its current entry is updated to be this one
+(`BrowsingContext::pipeline`). Then, the current document is
 [unloaded](https://html.spec.whatwg.org/multipage/#unload-a-document).
 
 Further, each `SessionHistoryChange` has an optional `replace` field which
@@ -295,11 +302,13 @@ On the other hand, if it doesn't have a `replace` field, the
 retrieved and a `SessionHistoryDiff` is created for the current load, which
 represents the difference between two adjacent session history entries. It is an
 enum with three variants:
+
 - `BrowsingContextDiff`, which represents the change of the active pipeline of
   the browsing context;
 - `PipelineDiff`, which is used when the active state of a `Pipeline` changed
   (TODO elaborate);
 - and `HashDiff`, about which I quite frankly don't yet know much.
+
 So this part I still don't fully understand but from what I can tell this new
 diff is pushed onto the `JointSessionHistory` entry and in exchange other
 history entries to close are returned as determined by
@@ -308,17 +317,21 @@ history entries to close are returned as determined by
 Before we go on to remove the pipelines, the activity of the old pipeline in
 browsing context and as well as the new one is updated.
 
+##### Closing a pipeline
+
 After having gathered the pipelines and states to close, `close_pipeline` is
 called for each pipeline. This method removes the pipeline id from
 `BrowsingContext::pipelines`, closes each, if any, browsing context (iframe) in
-pipeline's document (via `close_browsing_context`, which then proceeds to close
-nested pipelines, meaning this and `close_pipeline` end up being called
-recursively until the bottom of the frame tree), and if any pending change is
-associated with this pipeline, that is also removed. Note, however, that the
-`Pipeline` instance isn't actually removed from `Constellation::pipelines` and
-thus dropped until a response arrives after calling `Pipeline::exit`, which
-sends a `CompositorMsg::PipelineExited` message to the compositor and
-a `ConstellationControlMsg::ExitPipeline` to the script thread.
+pipeline's document via `close_browsing_context` (which closes nested pipelines,
+meaning this and `close_pipeline` end up being called recursively until the
+bottom of the frame tree), and if any pending change is associated with this
+pipeline, that is also removed.
+
+Note, however, that the `Pipeline` instance isn't actually removed from
+`Constellation::pipelines` (and thus dropped) until the pipeline's script thread
+indicates it is safe to do so. Thus, `Pipeline::exit` is called, which sends a
+`CompositorMsg::PipelineExited` message to the compositor and a
+`ConstellationControlMsg::ExitPipeline` to the script thread.
 
 `ScriptThread::handle_exit_pipeline_msg` picks it up on the other side of the
 `ConstellationControlMsg::ExitPipeline` message, and it first removes any
@@ -330,7 +343,7 @@ removes the pipeline from `Constellation::pipelines`.
 ##### Trimming the history
 
 Finally, if this load is in an existing browsing context, the session history is
-trimmed for the *top-level browsing context, that is, the entire frame tree*,
+trimmed for the *top-level browsing context*, that is, *the entire frame tree*,
 with `trim_history`.
 
 This is rather straight forward. The maximum number of loaded pipelines that may
@@ -348,7 +361,7 @@ invoked twice in both cases--once above in each case, and once after the
 browsing context of the session change, which sends the frame tree to the
 compositor (i.e. embedder).
 
-#### `ProcessResponseChunk`
+#### ProcessResponseChunk
 
 `ScriptThread::handle_fetch_chunk`, as `handle_fetch_metadata` above, finds the
 `ParserContext` for this `Pipeline` and invokes
@@ -357,7 +370,7 @@ compositor (i.e. embedder).
 response body was received, `ParserContext::finish` is invoked.  Otherwise, we
 wait for more chunks or an explicit EOF signal.
 
-#### `ProcessResponseEOF`
+#### ProcessResponseEOF
 
 `ScriptThread::handle_fetch_eof`, like the previous two, finds the
 `ParserContext` for this `Pipeline` and invokes `process_response_eof`, and
@@ -394,5 +407,11 @@ encompassing `Document`, then the `HTMLIFrameElement` itself and invokes
 `iframe_load_event_steps` on it. This fires the load event for the iframe,
 terminates the `LoadBlocker` (TODO what's this?) and issues a window reflow.
 
-As far as I can tell, the above detail most of the steps necessary to load a
-page in Servo.
+#### ProcessRequestBody and ProcessRequestEOF
+
+These are not implemented at the time of this post's writing.
+
+## Done
+
+As far as I can tell, these are most of the steps necessary to load a page in
+Servo.

@@ -25,9 +25,9 @@ All that said, please take everything with a *massive* grain of salt--I'm merely
 a hobbyist enjoying contributing to a project that I feel matters, but
 ultimately the information described herein may not only be out-of-date, but
 also wrong. Therefore the canonical source of information should always be
-asking the core devs on the #servo Mozilla IRC channel, or if all else fails,
-reading through the code yourself (most of it is rather readable and quite well
-documented!).
+reading the through the code and docs yourself (most of it is rather readable
+and quite well documented!), and if all else fails, asking the core devs on the
+#servo Mozilla IRC channel.
 
 So I kindly ask you to treat this guide merely as a hint.
 
