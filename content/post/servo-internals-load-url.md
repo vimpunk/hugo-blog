@@ -40,17 +40,15 @@ page is spawned.
 
 The compositor sends the constellation a `CompositorMsg::NewBrowser` message,
 which includes the URL and the ID for the to-be-created top-level browsing
-context.
-This message is handled by
-`Constellation::handle_new_top_level_browsing_context`, which sets up fields
-like the window size, the `LoadData` instance (which besides the URL includes
-other metadata, like the HTTP headers, data, referrer policy, referrer URL, and
-others), the `PipelineId` for the `Pipeline` of this page, among others.
-Then, it proceeds to create this pipeline by calling
-`Constellation::new_pipeline` and also creates a `SessionHistoryChange` with
-`Constellation::add_pending_change`. But before delving into these two
-functions, let's first examine the other major case that leads to calling the
-same two functions.
+context. This message is handled by `Constellation` with
+`handle_new_top_level_browsing_context`, which sets up fields like the window
+size, the `LoadData` instance (which besides the URL includes other metadata,
+like the HTTP headers, data, referrer policy, referrer URL, and others), the
+`PipelineId` for the `Pipeline` of this page, among others.  Then, it proceeds
+to create this pipeline by calling `Constellation::new_pipeline` and also
+creates a `SessionHistoryChange` with `Constellation::add_pending_change`.  But
+before delving into these two functions, let's first examine the other major
+case that leads to calling the same two functions.
 
 
 ### II. {FromScriptMsg, FromCompositor, WebDriverCommandMsg}::LoadUrl
@@ -81,9 +79,8 @@ is, it is the iframe's browsing context's parent, as reflected by
 `BrowsingContext::parent_pipeline_id`). This is handled by
 `ScriptThread::handle_navigate`, which first looks for the iframe this load
 targets among `ScriptThread::documents`, where all documents handled by this
-`ScriptThread` are stored, and issues
-`HTMLIFrameElement::navigate_or_reload_child_browsing_context` on the iframe
-instance. 
+`ScriptThread` are stored, and calls `navigate_or_reload_child_browsing_context`
+on the `HTMLIFrameElement` instance. 
 
 This method is invoked with the argument `NavigationType::Regular`. This is
 important because there are two cases when loading a page in an iframe: the
@@ -231,7 +228,8 @@ then passed to one of `FetchTaskTarget` sender's `process_response`,
 `process_response_eof`, `process_request_body`, or `process_request_eof`
 methods. Each method sends a `FetchResponseMsg` message to the `Constellation`,
 which without any processing at all forwards it to `ScriptThread` wrapped in a
-`ConstellationControlMsg::NavigationResponse(PipelineId, FetchResponseMsg)`.
+`ConstellationControlMsg::NavigationResponse` with arguments of types
+`PipelineId` and `FetchResponseMsg`.
 
 Let's see how each of them is handled by script:
 
@@ -259,7 +257,7 @@ important in our case is the `ScriptMsg::ActivateDocument` message sent to the
 
 #### Applying session history change
 
-`Constellation::handle_activate_document_msg` is invoked on the other side of
+`Constellation`'s `handle_activate_document_msg` is invoked on the other side of
 the channel. If the load is targeting an iframe, the iframe's parent pipeline is
 notified that the document changed. Then, `change_session_history` is invoked.
 If the currently focused pipeline is the same as, or the child of the one where
@@ -383,27 +381,29 @@ This time, however, if nothing went wrong and the parser is not suspended, the
 `finish` member is invoked, which sets the document's read state to interactive,
 clears the document's parser, and invokes `Document::finish_load`. Unless the
 document loader is blocked (TODO what does this mean?), the same way as above,
-`ScriptThread::mark_document_with_no_blocked_loads` is invoked, which is a
+`ScriptThread`'s `mark_document_with_no_blocked_loads` is invoked, which is a
 static function and merely inserts this document into
-`ScriptThread::docs_with_no_blocking_loads`.
+`docs_with_no_blocking_loads`.
 
 The interesting thing is that the document is not immediately finalized, because
 there may be other events the script thread need process first. The event loop
 is run in `ScriptThread::start`, continuously invoking `handle_msgs` until
 shutdown. This does a bunch of things not (directly) related to this blog post
 right now, so I'm skipping over to the part where this `Document` and
-potentially others are dequeued from `ScriptThread::docs_with_no_blocking_loads`
-and `Document::maybe_queue_document_completion` method is invoked on them. This
-again does a whole host of things, but the important bits are that the document
-state is set to complete (`DocumentReadyState::Complete`), the window is
-reflowed and scrolled to a fragment if present in the URL, and the constellation
-is notified of the document load, via `ScriptMsg::LoadComplete`.
+potentially others are dequeued from `ScriptThread`'s
+`docs_with_no_blocking_loads` and `maybe_queue_document_completion` method is
+invoked on each `Document` instance. This again does a whole host of things, but
+the important bits are that the document state is set to complete
+(`DocumentReadyState::Complete`), the window is reflowed and scrolled to a
+fragment if present in the URL, and the constellation is notified of the
+document load, via `ScriptMsg::LoadComplete`.
 
-This is received by `Constellation::handle_load_complete_msg`. If the load
+`Constellation` handles this with `handle_load_complete_msg`. If the load
 occurred in a top-level browsing context, the embedder is notified that its
-document finished loading. Otherwise it's an iframe and `handle_subframe_loaded`
-is called. This sends a `ConstellationControlMsg::DispatchIFrameLoadEvent` to
-iframe's parent pipeline's event loop.
+document finished loading.  Otherwise it's an iframe and
+`handle_subframe_loaded` is called. This sends a
+`ConstellationControlMsg::DispatchIFrameLoadEvent` to iframe's parent pipeline's
+event loop.
 
 `ScriptThread::handle_iframe_load_event` takes over, and finds the iframe's
 encompassing `Document`, then the `HTMLIFrameElement` itself and invokes
