@@ -3,9 +3,8 @@ title: "Servo Internals"
 date: 2018-09-15T23:44:50+02:00
 draft: false
 tags: [servo]
+author: mandreyel
 ---
-
-## Preface
 
 I recently started contributing to Mozilla's
 [Servo](https://github.com/servo/servo), a new browser engine experiment,
@@ -15,6 +14,8 @@ I take a lot of notes as I walk through the code base (it's quite vast--at the
 time of writing the Rust portions alone are 1.5M CLOC), and I thought I'd put
 them online, primarily for myself as future reference, but also in hopes that it
 may be useful for others starting out.
+
+<!--more-->
 
 ## Disclaimer
 

@@ -3,12 +3,13 @@ title: "Favorite Vim Settings"
 date: 2018-09-20T21:49:45+02:00
 draft: false
 tags: [vim]
+author: mandreyel
 ---
 
-## Preface
-
-Collection of my favorite vim settings taken from my
+A collection of my favorite vim settings taken from my
 [vimrc](https://github.com/mandreyel/dotfiles/blob/master/vim/.vimrc).
+
+<!--more-->
 
 ## Line numbers
 

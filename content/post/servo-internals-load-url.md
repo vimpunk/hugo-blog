@@ -3,14 +3,16 @@ title: "Servo Internals: Loading Pages"
 date: 2018-09-15T23:47:55+02:00
 draft: false
 tags: [rust, servo]
+author: mandreyel
 ---
-
-## Disclaimer
 
 This blog post is part of a
 [series](https://mandreyel.github.io/posts/servo-internals/) I'm doing on Servo.
-All of it is still heavily work-in-progress. Some details may be missing or
+It's a deep dive into how Servo loads a page given a URL.
+Please note, though, that it is still heavily work-in-progress. Some details may be missing or
 incorrect.
+
+<!--more-->
 
 ## Starting points
 
