@@ -2,3 +2,7 @@
 	path = themes/hugo_theme_pickles
 	url = https://github.com/mismith0227/hugo_theme_pickles
 	branch = release
+[submodule "public"]
+	path = public
+	url = https://github.com/mandreyel/mandreyel.github.io
+	branch = master
