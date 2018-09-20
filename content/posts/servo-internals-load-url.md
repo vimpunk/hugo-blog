@@ -6,12 +6,15 @@ draft: false
 
 ## Disclaimer
 
-This is a heavily work-in-progress draft. Some details may not be correct.
-
+This blog post is part of a
+[series](https://mandreyel.github.io/posts/servo-internals/) I'm doing on Servo.
+All of it is still heavily work-in-progress. Some details may be missing or
+incorrect.
 
 ## Starting points
 
 There are currently four ways in which a URL may be loaded:
+
 - the first time the browser is opened (when a new top-level browsing context is created);
 - when the user clicks on a link or a script navigates the page (both are
   handled by the script thread);
