@@ -2,6 +2,7 @@
 title: "Servo Internals: Loading Pages"
 date: 2018-09-15T23:47:55+02:00
 draft: false
+tags: [rust, servo]
 ---
 
 ## Disclaimer
@@ -15,7 +16,8 @@ incorrect.
 
 There are currently four ways in which a URL may be loaded:
 
-- the first time the browser is opened (when a new top-level browsing context is created);
+- the first time the browser is opened (when a new top-level browsing context is
+  created);
 - when the user clicks on a link or a script navigates the page (both are
   handled by the script thread);
 - when the user types a URL (this is handled by the compositor);

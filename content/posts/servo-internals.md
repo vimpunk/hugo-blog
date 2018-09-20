@@ -2,9 +2,10 @@
 title: "Servo Internals"
 date: 2018-09-15T23:44:50+02:00
 draft: false
+tags: [servo]
 ---
 
-## Motivation
+## Preface
 
 I recently started contributing to Mozilla's
 [Servo](https://github.com/servo/servo), a new browser engine experiment,
