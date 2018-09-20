@@ -1,7 +1,5 @@
 #!/bin/bash
 
-echo -e "\033[0;32mDeploying updates to GitHub...\033[0m"
-
 # Build the project.
 hugo # if using a theme, replace with `hugo -t <YOURTHEME>`
 
@@ -10,6 +8,7 @@ cd public
 # Add changes to git.
 git add .
 
+echo -e "\033[0;32mDeploying updates to GitHub page...\033[0m"
 # Commit changes.
 msg="Build hugo site (`date`)"
 if [ $# -eq 1 ]
@@ -23,6 +22,7 @@ git push origin master
 # Come Back up to the Project Root
 cd ..
 
+echo -e "\033[0;32mDeploying updates to GitHub page source...\033[0m"
 # Commit and push the Project Source as well
 git commit -am "$msg"
 git push origin master
