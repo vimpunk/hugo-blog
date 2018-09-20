@@ -1,7 +1,7 @@
 ---
 title: "Servo Internals"
 date: 2018-09-15T23:44:50+02:00
-draft: true
+draft: false
 ---
 
 ## Motivation
@@ -25,7 +25,7 @@ All that said, please take everything with a *massive* grain of salt--I'm merely
 a hobbyist enjoying contributing to a project that I feel matters, but
 ultimately the information described herein may not only be out-of-date, but
 also wrong. Therefore the canonical source of information should always be
-reading the through the code and docs yourself (most of it is rather readable
+reading through the code and docs yourself (most of it is rather readable
 and quite well documented!), and if all else fails, asking the core devs on the
 #servo Mozilla IRC channel.
 
@@ -41,4 +41,4 @@ updated.
 
 <!--- Bootstrapping Servo-->
 <!--- Creating an IFrame-->
-<!--- Loading a URL: TODO link here-->
+- Loading a URL: [https://mandreyel.github.io/posts/servo-internals-load-url]

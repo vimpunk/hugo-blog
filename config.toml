@@ -11,17 +11,17 @@ theme = "hugo_theme_pickles"
   gitlab = "mandreyel"
 
   author = "mandreyel"
-  authorwebsite = "example.com"
-  avatar = "/path/to/avatar"
+  #authorwebsite = "example.com"
+  #avatar = "/path/to/avatar"
   contact = "mandreyel@protonmail.com"
   bio = "it's me"
 
   # Short subtitle/tagline. This is displayed in the header.
-  subtitle = "My little corner in cyberspace"
+  subtitle = "TODO change this"
 
   # Logo image. This is displayed ogp image.
-  logo = "/path/to/logo"
-  favicon = "/path/to/favicon"
+  #logo = "/path/to/logo"
+  #favicon = "/path/to/favicon"
 
 [[menu.main]]
     name = "Blog"
