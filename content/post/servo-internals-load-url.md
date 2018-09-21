@@ -9,8 +9,8 @@ author: mandreyel
 This blog post is part of a
 [series](/post/servo-internals/) I'm doing on Servo.
 It's a deep dive into how Servo loads a page given a URL.
-Please note, though, that it is still heavily work-in-progress. Some details may be missing or
-incorrect.
+Please note, though, that it is still heavily work-in-progress. Some details may
+be missing or incorrect.
 
 <!--more-->
 
@@ -113,16 +113,15 @@ loading the first page you clicked on. The load is also disregarded if the
 pipeline is inactive.
 
 A document (or from `Constellation`'s point of view, the `Pipeline`) can be in
-  three states: inactive, active, and fully active. This is explained in the
-  [living
-  standard](https://html.spec.whatwg.org/multipage/browsers.html#fully-active]).
+three states: inactive, active, and fully active. This is explained in the
+[living
+standard](https://html.spec.whatwg.org/multipage/browsers.html#fully-active]).
 
 TODO replace?
 
 Finally, a new `Pipeline` is constructed with `Constellation::new_pipeline` and
 a `SessionHistoryChange` is created with `Constellation::add_pending_change`,
 the exact same steps in which the previous cases conclude.
-
 
 ## Execution paths coalesce
 

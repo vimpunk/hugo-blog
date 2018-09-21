@@ -17,18 +17,26 @@ Set both `number` and `relativenumber` to show the line number under the cursor
 as well as the distance of surrounding lines. However, this is only useful while
 in command mode, so an `autocommand` can be used to switch to only display
 absolute line numbers when entering insert mode or when switching to another
-buffer:
+buffer. Moreover, this only sets relative line numbers if number is defined in
+the buffer, which is useful when e.g. viewing vim docs.
 
 ```vim
-set number
-set relativenumber
+fun! s:SetRelativeNumber()
+    if &number
+        set relativenumber
+    endif
+endfun
 
-" Show relative line numbers when in command mode or switching to another
-" buffer, and show absolute line numbers when in insert mode.
+fun! s:UnsetRelativeNumber()
+    if &number
+        set norelativenumber
+    endif
+endfun
+
 augroup NumberToggle
   autocmd!
-  autocmd BufEnter,FocusGained,InsertLeave * set relativenumber
-  autocmd BufLeave,FocusLost,InsertEnter   * set norelativenumber
+  autocmd BufEnter,FocusGained,InsertLeave * call s:SetRelativeNumber()
+  autocmd BufLeave,FocusLost,InsertEnter   * call s:UnsetRelativeNumber()
 augroup END
 ```
 
