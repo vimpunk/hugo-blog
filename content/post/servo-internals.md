@@ -7,13 +7,10 @@ author: mandreyel
 ---
 
 I recently started contributing to Mozilla's
-[Servo](https://github.com/servo/servo), a new browser engine experiment,
-eventually intended to be merged into Firefox.
-
-I take a lot of notes as I walk through the code base (it's quite vast--at the
-time of writing the Rust portions alone are 1.5M CLOC), and I thought I'd put
-them online, primarily for myself as future reference, but also in hopes that it
-may be useful for others starting out.
+  [Servo](https://github.com/servo/servo), and I take a lot of notes while
+  walking through the code base. I decided to furnish them with explanations and
+  put them online--primarily for myself as future reference, but also in hopes
+  that it may be useful for others.
 
 <!--more-->
 

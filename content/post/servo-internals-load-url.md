@@ -14,7 +14,7 @@ be missing or incorrect.
 
 <!--more-->
 
-## Starting points
+## Entry points
 
 There are currently four ways in which a URL may be loaded:
 
@@ -468,7 +468,7 @@ on it. This fires the load event for the iframe, terminates the `LoadBlocker`
 
 These are not implemented at the time of this post's writing.
 
-## Done
+## Fin
 
 As far as I can tell, these are most of the steps necessary to load a page in
 Servo.
