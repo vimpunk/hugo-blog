@@ -1,0 +1,23 @@
+#baseUrl = "https://mandreyel.github.io/"
+baseUrl = "/"
+languageCode = "en-us"
+title = "mandreyel's blog"
+theme = "hello-friend"
+copyright = ""
+paginate = 5
+
+[params]
+  subtitle = "thoughts on stuff"
+
+[params.logo]
+  logoText = "mandreyel"
+#   or
+#
+#   path = "/img/your-example-logo.svg"
+#   alt = "Your example logo alt text"
+
+[menu]
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about"

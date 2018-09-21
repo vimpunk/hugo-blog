@@ -1,0 +1,16 @@
+baseURL = "https://mandreyel.github.io/"
+languageCode = "en-us"
+title = "mandreyel's blog"
+theme = "purehugo"
+Paginate = 10
+#disqusShortname = "xxxx"
+
+[params]
+  #twitterName = "dragos_plesca"
+  githubName = "mandreyel"
+  gitlabName = "mandreyel"
+  #stackOverflowId = "#######"
+  #linkedinName = "dragos-plesca-52797444"
+  description = "thoughts on stuff"
+  contact = "mandreyel@protonmail.com"
+  hideShareOptions = true
