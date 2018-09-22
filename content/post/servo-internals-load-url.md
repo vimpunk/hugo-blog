@@ -14,6 +14,12 @@ be missing or incorrect.
 
 <!--more-->
 
+Also, I'm not going to give a full explanation of all components involved in
+this blog post (such as `Constellation`, `Pipeline`, `ScriptThread`,`Compostior`
+etc), so it's best to read [the ofificial design
+note](https://github.com/servo/servo/wiki/Design) to see the bigger picture and
+know what the details to follow are referring to.
+
 ## Entry points
 
 There are currently four ways in which a URL may be loaded:
@@ -243,7 +249,7 @@ and `Send` traits.
 
 `FetchTaskTarget` defines the following methods: `process_response`,
 `process_response_eof`, `process_request_body`, and `process_request_eof`.
-`IpcSender` is `Send` by default (meaning it's safe to be sent across channels),
+`IpcSender` is `Send` by default (meaning it's safe to be sent across threads),
 but `FetchTaskTarget` is
 [implemented](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/net_traits/lib.rs#L212)
 for `IpcSender<FetchResponseMsg>` in `net_traits/lib.rs`. This is how the fetch
@@ -286,7 +292,7 @@ Then,
 is invoked, which is the entry point to loading a document. It defines bindings,
 sets up the
 [`Window`](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/script/dom/window.rs#L171),
-[`WindowProx[`Window`]y`](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/script/dom/windowproxy.rs#L58),
+[`WindowProxy`](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/script/dom/windowproxy.rs#L58),
 and
 [`Document`](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/script/dom/document.rs#L253),
 starts HTML and CSS parsing, and kicks off the initial layout.  Most important
@@ -300,9 +306,9 @@ in our case is the `ScriptMsg::ActivateDocument` message sent to the
 is invoked on the other side of the channel. If the load is targeting an iframe,
 the iframe's parent pipeline is notified that the document changed. Then,
 [`change_session_history`](https://github.com/servo/servo/blob/9d52fb88abf3843c7db338120e9f518a1834f80f/components/constellation/constellation.rs#L3092)
-is invoked.  If the currently focused pipeline is the same as, or the child
-`change_session_history` of the one where the load is occurring, the focused
-pipeline is changed to the one which is loading the page.
+is invoked.  If the currently focused pipeline is the same as, or the child of
+the one where the load is occurring, the focused pipeline is changed to the one
+which is loading the page.
 
 #### a) New browsing context
 
