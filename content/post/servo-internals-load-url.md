@@ -17,17 +17,19 @@ be missing or incorrect.
 Also, I'm not going to give a full explanation of all components involved in
 this blog post (such as `Constellation`, `Pipeline`, `ScriptThread`,`Compostior`
 etc), so it's best to read [the ofificial design
-note](https://github.com/servo/servo/wiki/Design) to see the bigger picture and
-know what the details to follow are referring to.
+note](https://github.com/servo/servo/wiki/Design) to see the big picture and the
+[living standard](https://html.spec.whatwg.org/multipage/]) to know what the
+details to follow are referring to.
 
 ## Entry points
 
 There are currently four ways in which a URL may be loaded:
 
-- the first time the browser is opened (when a new top-level browsing context is
-  created);
+- the first time the browser is opened (when a new top-level [browsing
+context](https://html.spec.whatwg.org/multipage/browsers.html#windows) is
+created);
 - when the user clicks on a link or a script navigates the page (both are
-  handled by the script thread);
+handled by the script thread);
 - when the user types a URL (this is handled by the compositor);
 - and finally the WebDriver can also initiate URL loads.
 
@@ -74,10 +76,9 @@ One very important distinction from the previous case is that `load_url` is
 hard asserts are made, as it is preferred not to panic in `Constellation` and
 instead issue a `warn!` message and return early from the method.
 
-There are two further sub-cases within this method. In the first case, the
-pipeline that initiated the load is located in an iframe (which is a nested
-browsing context), or it's in a top-level browsing context (i.e. a window or
-tab).
+There are two further sub-cases within this method. In the first, the pipeline
+that initiated the load is located in an iframe (which is a nested browsing
+context), or it's in a top-level browsing context (i.e. a window or tab).
 
 #### a) Loading a URL in an IFrame
 
