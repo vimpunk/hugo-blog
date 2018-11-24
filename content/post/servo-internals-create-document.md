@@ -9,7 +9,7 @@ author: mandreyel
 As part of a [series](/post/servo-internals/) I'm doing on Servo, this post
 walks through how documents are initially fetched and parsed, and how the DOM is
 constructed. A tl;dr version of the call chain is
-[here](/post/servo-create-document/#tl-dr).
+[here](/post/servo-internals-create-document/#tl-dr).
 
 <!--more-->
 
@@ -35,7 +35,7 @@ which initiates the navigation request.
 [here](/post/servo-internals-load-url/), up until the point where the
 fetch responses are sent back to `Constellation::network_listener_receiver` and
 forwarded to `ScriptThread` as a `ConstellationControlMsg::NavigationResponse`.
-The various 
+The various TODO ?
 
 ### Parse response chunks
 
