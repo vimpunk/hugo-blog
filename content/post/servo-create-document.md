@@ -2,13 +2,14 @@
 title: "Servo Internals: Creating Documents"
 date: 2018-11-23T10:37:21+01:00
 draft: true
-tags: [rust, servo]
+tags: [rust, servo, dom]
 author: mandreyel
 ---
 
 As part of a [series](/post/servo-internals/) I'm doing on Servo, this post
 walks through how documents are initially fetched and parsed, and how the DOM is
-constructed. A tl;dr version of the call chain is [here](#tl-dr).
+constructed. A tl;dr version of the call chain is
+[here](/post/servo-create-document/#tl-dr).
 
 <!--more-->
 
