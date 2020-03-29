@@ -2,15 +2,15 @@
 baseUrl = "/"
 languageCode = "en-us"
 title = "mandreyel's blog"
-theme = "hello-friend"
+theme = "ananke"
 copyright = ""
 paginate = 5
 
 [params]
   subtitle = "thoughts on stuff"
 
-[params.logo]
-  logoText = "mandreyel"
+#[params.logo]
+  #logoText = "mandreyel"
 #   or
 #
 #   path = "/img/your-example-logo.svg"
