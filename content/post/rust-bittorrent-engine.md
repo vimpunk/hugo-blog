@@ -1,5 +1,5 @@
 ---
-title: "Rust BitTorrent Engine"
+title: "Rust BitTorrent engine"
 date: 2020-03-29T21:39:04+02:00
 draft: true
 tags: [rust, bittorrent]
@@ -11,12 +11,22 @@ I am writing a BitTorrent engine in Rust, a crate called `cratetorrent`, and
 
 <!--more-->
 
-The name is an admittedly not too creative wordplay paying homage to the C++
-[`libtorrent` library](https://github.com/arvidn/libtorrent). I tried to write a
-BitTorrent engine a few years back, and libtorrent and especially its dev blog
-was the source of many lessons and "aha" moments. So I suppose this is a rather
-convoluted way of saying thank you, as reading the source of libtorrent has in
-some way helped me to be where I am today in my career.  <!--more-->
+## Introduction
+
+The name is a slight wordplay paying homage to the C++ [`libtorrent`
+library](https://github.com/arvidn/libtorrent). I tried to write a BitTorrent
+engine a few years back and libtorrent and its dev blog was the source of many
+lessons and "aha" moments. I suppose this is a rather convoluted way of
+saying thank you, as reading the source of libtorrent has in some way helped me
+to be where I am today in my career.
+
+The short-term goal of this project is primarily self-education, but later
+I would like to turn cratetorrent into a very fast and full-featured torrent
+  library that others can build their apps upon.
+
+The crate also has a binary that will eventually be a torrent client for the
+command line. Developing it alongside the library ensures that feedback for the
+library API is quickly integrated.
 
 <!--outline:-->
 <!--- intro: what, why, and how-->
@@ -27,43 +37,11 @@ some way helped me to be where I am today in my career.  <!--more-->
 <!--- detail first milestone-->
 
 
-## The goal
-
-The main goal is to master networking, low-level programming and optimizations,
-async IO, peer-to-peer protocols in Rust with a fun project.
-
-I love BitTorrent! The protocol is remarkably efficient at
-  achieving its stated goal while remaining simple (on the protocol level,
-  anyway).  So while a full-fledged client can get quite complex, its scope is
-  still relatively manageable by a single dedicated developer.
-
-The secondary, longer term goal is to create a fast and full-featured torrent
-engine that others can use to build their torrent UI upon, as well as a simple
-BitTorrent CLI binary that can be used to download and seed torrents.
-
-## Milestones
-
-These are the initial milestones that guide the development:
-
-1. Perform a single in-memory download of a file with a single peer connection
-   if given the address of a seed and the path to the torrent metainfo.
-2. Extend 1. with actually saving the downloaded file to disk after
-   verification.
-3. Download a directory of files using a single peer connection.
-4. Download a torrent using multiple connections.
-5. Optimize download performance to use self-adjusting optimal request queue
-   sizes and slow start mode for ramping up download throughput.
-6. Seed a torrent.
-7. Optimize disk IO performance by introducing the concept of backpressure
-   between the network IO and disk IO, in both ways (i.e. for both seeds and
-   downloads), write buffers, async hashing and file IO.
-
-
 ## The approach
 
-- Develop features iteratively.
+- Each feature is a separate iteration.
 - Design solutions up front.
-- Test driven approach.
+- Test driven.
 
 #### Iteration
 This comes from my [previous
@@ -92,11 +70,28 @@ And only after this comes the implementation, which should mostly just be
 translating the design to code. Of course the world is not an ideal place, so in
 just my brief stint with this project I've already found that things don't
 always work in code as devised in the design (especially when the borrow checker
-thinks otherwise of one's plans), especially that as of this writing I'm not
-that familiar with Rust's async/await and its related ecosystem.
+thinks otherwise of one's plans).
 
 
-## Reproducible integration testing
+## Milestones
+
+These are the initial milestones that guide the development:
+
+1. Perform a single in-memory download of a file with a single peer connection
+   if given the address of a seed and the path to the torrent metainfo.
+2. Extend 1. with actually saving the downloaded file to disk after
+   verification.
+3. Download a directory of files using a single peer connection.
+4. Download a torrent using multiple connections.
+5. Optimize download performance to use self-adjusting optimal request queue
+   sizes and slow start mode for ramping up download throughput.
+6. Seed a torrent.
+7. Optimize disk IO performance by introducing the concept of backpressure
+   between the network IO and disk IO, in both ways (i.e. for both seeds and
+   downloads), write buffers, async hashing and file IO.
+
+
+## Reproducible integration tests
 
 Before beginning, I wanted to come up with how to test something as
 non-deterministic as a torrent run. Doing purely unit testing of each component
@@ -130,8 +125,8 @@ good enough approach.
 
 Note that all of this assumes that cratetorrent directly connects to these
 peers, as I haven't incorporated trackers or DHT into this approach, but I'm
-sure it is possible to set up a tracker as its own container. Tracker support is
-a far later step in the development, though.
+sure it is possible to set up a tracker as its own container. Tracker and DHT
+support is a far later step in the development, though.
 
 #### The solution
 
@@ -152,3 +147,12 @@ tests folder and its design doc
 Since the design is well
 [documented](https://github.com/mandreyel/cratetorrent/blob/master/DESIGN.md),
 I'd like to focus on my thoughts and experience coming up with it.
+
+Realization: bittorrent peer protocol is mostly reactive: even if we're
+downloading, beyond initiating the connection, we wait to be unchoked, then we
+maek requests, then we wait for blocks, etc. Seeds are completely reactive: they
+wait for a connection to be opened, unchoke the peer (this is determined by the
+torrent, not the session itself), and then send blocks to requests and not doing
+anything else. This means that the peer session loop can be based on reading
+from the socket stream (there will be other events that drive the loop, but this
+is the primary one).
