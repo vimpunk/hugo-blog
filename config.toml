@@ -1,23 +1,56 @@
 #baseUrl = "https://mandreyel.github.io/"
 baseUrl = "/"
 languageCode = "en-us"
+theme = "smol"
+#theme = "cactus"
 title = "mandreyel's blog"
-theme = "ananke"
 copyright = ""
-paginate = 5
+paginate = 20
 
 [params]
-  subtitle = "thoughts on stuff"
+colortheme = "dark" # dark, light, white, or classic
+subtitle = "...this space is growing..."
 
-#[params.logo]
-  #logoText = "mandreyel"
-#   or
-#
-#   path = "/img/your-example-logo.svg"
-#   alt = "Your example logo alt text"
+#[[menu.main]]
+#name = "Home"
+#url = "/"
+#weight = 1
 
-#[menu]
-  #[[menu.main]]
-    #identifier = "about"
-    #name = "About"
-    #url = "/about"
+#[[menu.main]]
+#name = "Posts"
+#url = "/post"
+#weight = 2
+
+#[[menu.main]]
+#name = "Tags"
+#url = "/tags"
+#weight = 3
+
+# TODO: add about section
+#[[menu.main]]
+#name = "About"
+#url = "/about"
+#weight = 4
+
+#[params]
+  #subtitle = "thoughts on software, projects, Rust"
+
+[menu]
+# Header
+[[menu.main]]
+identifier = "posts"
+name = "Posts"
+url = "/post/"
+weight = 1
+
+[[menu.main]]
+identifier = "tags"
+name = "Tags"
+url = "/tags/"
+weight = 3
+
+# Footer
+[[menu.footer]]
+name = "Github"
+url = "https://github.com/mandreyel"
+weight = 1
