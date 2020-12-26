@@ -20,8 +20,8 @@ started to understand the details. There is a piece of technology that is so
 effective yet simple, that, without any marketing, it gained widespread adoption
 due simply to sheer technical superiority. It just worked and people used it.
 
-I had to find out, so I wrote a client, in C++. It didn't work out.
-Half-finished, unstable, not well tested. Let's forget it.
+So why not write one? I did, in C++. It didn't work out. Half-finished,
+unstable, not well tested. Let's forget it.
 
 Fast-forward a few years. I got into Rust and needed a familiar playground to
 practice the language. I did what anyone in such a situation would do: I wrote
