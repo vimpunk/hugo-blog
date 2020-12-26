@@ -18,7 +18,7 @@ subtitle = "...this space is growing..."
 
 #[[menu.main]]
 #name = "Posts"
-#url = "/post"
+#url = "/posts"
 #weight = 2
 
 #[[menu.main]]
@@ -40,7 +40,7 @@ subtitle = "...this space is growing..."
 [[menu.main]]
 identifier = "posts"
 name = "Posts"
-url = "/post/"
+url = "/posts/"
 weight = 1
 
 [[menu.main]]
