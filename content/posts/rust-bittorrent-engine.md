@@ -16,10 +16,10 @@ optimizations, and some of the insights gained.
 Growing up, torrenting was a big thing around me. I was always curious how it
 worked.
 
-This curiosity only increased after I had gotten into programming and
-started to understand the details. There is a piece of technology that is so
-effective yet simple, that, without any marketing, it gained widespread adoption
-due simply to sheer technical superiority. It just worked and people used it.
+This curiosity only grew after I had gotten into programming and started to
+understand the details. There is a piece of technology that is so effective yet
+simple, that, without any marketing, it gained widespread adoption due simply to
+sheer technical superiority. It just worked and people used it.
 
 So why not write one? I did, in C++. It didn't work out. Half-finished,
 unstable, not well tested. Let's forget it.
@@ -46,7 +46,7 @@ BitTorrent is a _mostly_ decentralized file-sharing protocol: it consists of
 potentially many symmetrical clients exchanging arbitrary data.
 
 Its advantage over downloading from a single host is that the load is
-distributed among all participants in the torrent _swarm_, thereby increasing
+distributed among all participants in the torrent, thereby increasing
 availability, scalability, and often download speed, too.
 
 It used to be highly popular, as everyone used it to share...Linux distros, yes,
@@ -58,7 +58,7 @@ among its users.
 
 ### Who's in a torrent?
 
-Torrent is not fully decentralized because at the start of the download
+BitTorrent is not fully decentralized because at the start of the download
 a client needs to know which other clients it can download from. Such other
 clients in the torrent's _swarm_ are called _peers_. Peers that have all the
 data are _seeds_, the rest are _leeches_. A bit of an uncomfortable term.
@@ -96,7 +96,7 @@ files. The logic can get quite gnarly here if done optimally.[^file_padding]
 ### The peer protocol
 
 After the client connects to a peer via TCP, they exchange
-handshakes[^handshake]. Then, one or both of them tell the other that it can
+handshakes. Then, one or both of them tell the other that it can
 start to request blocks. The client then makes a request for a block in some
 piece it chose[^pick_piece], its peer sends it, the client saves it and requests
 another block. Repeat until finished.
@@ -106,7 +106,7 @@ be quite a bit more complex. Let's see some of the complications.
 
 ## Key optimizations
 
-(So nothing premature, promise!)
+(Nothing premature, promise!)
 
 ### Download pipelining
 
@@ -141,10 +141,10 @@ let request_queue_size = download_rate / BLOCK_LEN;
 
 The above suggests an interesting problem: what's the fastest way of
 arriving at the link's capacity? Taking time to get to this optimum number costs
-the client time. No good.
+time. No good.
 
 It turns out that this is a solved problem. To find the answer we just have
-to peek one layer below in our conceptual network stack: **TCP**.
+to peek one layer below in the network stack: **TCP**.
 
 When a TCP connection is set up, the protocol tries to find the right congestion
 window size. This is a fancy way of saying "the number of bytes to send that
@@ -204,7 +204,7 @@ runtime in Rust.
 
 The engine's main components are depicted here:
 
-![architecture diagram](/images/archi.png)
+![architecture diagram](/images/archi.svg)
 
 Most of these are separate [tasks](https://docs.rs/tokio/0.2.13/tokio/task)
 (essentially application level [green
@@ -227,7 +227,7 @@ once a second currently, to update their internal state and broadcast messages.
 This is when alerts (such as periodic download statistics or "download
 complete") are sent to the library user for example.
 
-As an example, a torrent's event loop might look like this:
+A torrent's event loop might look like this:
 ```rust
 loop {
     select! {
@@ -266,8 +266,8 @@ a breeze to scale the code. But in rare cases it is not the most ergonomic way.
 While most tasks are concerned with their own data, peer sessions in a torrent
 need to access and mutate a part of the torrent state.
 
-For read-only data (which is the bulk of it), this is a simple `Arc` away. But
-for shared mutable access, this was not so clear when
+For read-only shared data (which is the majority), this is a simple `Arc` away.
+But for shared mutable access, this was not so clear when
 I started writing this: do I use
   [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html)
   or full channel round-trips?
@@ -281,7 +281,9 @@ To be more concrete, the two entities in question:
 
 While it would be possible to keep these in torrent and let peer sessions use
 messages to manipulate them, but since they are used in many places, it is more
-straightforward to use locks.
+straightforward to use locks. Which one was the better overall solution, in
+terms of performance, though? Is there a drastic difference between the two that
+would make choosing one the obvious solution?
 
 I did not trust my intuition so I set up some synthetic benchmarks to simulate
 the two approaches. While not exactly representing the real world, I wanted to
@@ -309,24 +311,24 @@ However, I ended up going with the lock based solution, for a few reasons:
   that good enough, for the MVP anyway.
 - There is actually an additional not so trivial to simulate logic around
   downloads: timeouts and salvaging late blocks. It is outside the scope to
-  explain now, but it meant accessing to the above data in other places too,
-  which would have made a channels based implementation more convoluted.
+  explain now, but it meant accessing the above data in other places too, which
+  would have made a channels based implementation more convoluted.
 
 ### Disk IO
 
 I mentioned that reading from and writing to disk uses blocking IO. Why not
-`tokio::fs` (which provides async versions of the standard lib equivalent),
-you may ask? This requires a little explanation...
+`tokio::fs` (which provides async versions of the standard lib equivalent)?
+This requires a little explanation...
 
 While I tried not to make excessive premature optimizations, a torrent client _is_
 the type of application where performance matters: besides actually downloading
 things, the second most important thing is that it does so _as fast as
 possible_.
 
-Therefore I made some assumptions to drive my decisions, which I believe are
-sensible:
-- Context switching and thus syscalls are expensive, and has become even more so
-  due to speculative execution mitigations as of late. Use batching where
+In line with this, I made two assumptions to drive my decisions, which I believe
+are sensible:
+- Many context switches (and syscalls) are expensive, and has become even more
+  so due to speculative execution mitigations as of late. Use batching where
   possible.
 - However, if possible, avoid copying block buffers, of which there could be
   many. Copying many 16 KiB buffers is an unwanted cost.
@@ -339,7 +341,7 @@ syscall and without additional buffer copies, using _positional vectored IO_:
 This kernel API allows writing a list of byte buffers at a given position in the
 file in one atomic operation.[^pwritev_atomicity] There is no need to seek, nor
 is there one to write each block separately, or to coalesce buffers into a
-single buffer to be able to do a single write.[^write_all_vectored]
+single buffer.[^write_all_vectored]
 
 An interesting discussion around this has evolved on
 [reddit](https://www.reddit.com/r/rust/comments/kiah3q/i_wrote_cratetorrent_a_bittorrent_engine_in_rust/ggprwcd).
@@ -372,7 +374,7 @@ back. For example, I added seeding quite late in the process yet I was able to
 test full downloads way before that.
 
 Another benefit was that even though everything was local and mostly
-reproducible, I was still testing against a real-world client. This meant that
+reproducible, I was still testing against a real world client. This meant that
 it ensured that my implementation was compatible with the rest of the ecosystem.
 
 If you're curious how this was all setup, you can check it out
@@ -386,30 +388,23 @@ just sane architectural decisions, the performance is quite good out of the
 gate.
 
 A real-life download of Ubuntu 20.04 (~2.8 GB), which is a well seeded torrent,
-downloading from 40-50 peers, comes down at ~9 MBps on my network that has
-roughly that much capacity. Quite good, but it doesn't tell us much as my ISP is
-the limiting factor here, not cratetorrent.
+downloading from 40-50 peers, comes down at ~9 MBps on my network. But that's
+also the exact capacity of my downlink. Quite good, but it doesn't tell us much.
 
-To test the theoretical limits, I created a larger, ~10 GiB torrent and ran an
-instance of a seed and a leech on my localhost. This cuts out the limitations
-imposed by the network and the network card, using only the virtual loopback
-device.
+Testing on localhost, with a single cratetorrent seed and leech, the current
+limit seems to be around 270 MBps. This value is from the second run, making use
+of the seed's saturated read cache. The first run netted around 160-200 MBps.
 
-The result is 160-200 MBps on the first run, and 270 MBps on the second. The
-large disparity is likely due to the kernel page cache and the cratetorrent read
-cache incurring some overhead while filling up. However, CPU usage on the seed is
-*very* high. Profiling points to the disk read function where half of the CPU
-time is taken up by `preadv` and the other by `__memset_avgx2__erms`.
-I have a suspicion as to what this might be but I'll leave this for another
-time.
+However, CPU usage on the seed is *very* high. Profiling points to the disk read
+function where half of the CPU time is taken up by `preadv` and the other by
+`__memset_avgx2__erms`. I have a suspicion as to what this might be but I'll
+leave this for another time.
 
 ---
 
-Out of curiosity, I did the same by running cratetorrent against a single
-Transmission seed (in Docker). The download rate maxed out at 35 MBps. I
-expected...a lot more. Docker networking on Linux should not have noticeable
-overhead  and I had upload rate limits disabled. So I'm not sure if Transmission
-is that much slower or if there is anything else I missed.
+For comparison, with the same setup Transmission maxed out at 35 MBps! That's
+a 5-7x difference, and my seeding implementation isn't even optimized. (I made sure
+to turn off Transmission's upload rate limiting.)
 
 But this is by no means meant to be a shootout. Maybe one day I will return
 to a more thorough performance showdown that includes other clients...including
@@ -455,7 +450,7 @@ Stay tuned!
 [^slow_start]: The idea is from libtorrent.
 [^endgame]: Really. With some tests the last few pieces took a staggering 30% of
   the overall download time!
-[^pwritev_atomicity]: However, the kernal APIs don't guarantee
+[^pwritev_atomicity]: However, the kernel APIs don't guarantee
   writing the full contents of all buffers to disk. Therefore most
   implementations, including cratetorrent, call `pwritev` repeatedly until all
   bytes are written.
@@ -477,7 +472,7 @@ Stay tuned!
   is given to each as they all need to work on the same data. Even worse,
   with each mutation, CPUs have to synchronize their caches, further slowing
   down the program. Whereas with the channels based solution, the data is only
-  ever mutated by one CPU, therefor no cache pollution occurs. And sending
+  ever mutated by one CPU, therefore no cache pollution occurs. And sending
   messages via channels is very cheap as, depending on the channel
   implementation, it most likely uses a lock-free queue, making it
   probably the only place that CPUs have to synchronize among each other.
