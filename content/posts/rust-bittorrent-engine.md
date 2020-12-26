@@ -393,7 +393,8 @@ also the exact capacity of my downlink. Quite good, but it doesn't tell us much.
 
 Testing on localhost, with a single cratetorrent seed and leech, the current
 limit seems to be around 270 MBps. This value is from the second run, making use
-of the seed's saturated read cache.
+of the seed's saturated read cache. The first run fluctuated in the range
+160-200 MBps.
 
 However, CPU usage on the seed is *very* high. Profiling points to the disk read
 function where half of the CPU time is taken up by `preadv` and the other by
