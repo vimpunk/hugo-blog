@@ -1,7 +1,8 @@
 ---
 title: "Writing a Bittorrent engine in Rust"
 date: 2020-12-26
-draft: true
+draft: false
+tags: [rust, bittorrent]
 ---
 
 This post recounts the journey of writing
