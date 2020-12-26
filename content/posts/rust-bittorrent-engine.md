@@ -84,7 +84,7 @@ availability, a key feature of the protocol.
 
 A tricky part here is that files are not padded to align with piece boundaries.
 
-![data representation](/images/data-repr.png)
+![data representation](/images/data-repr.svg)
 
 This has two consequences:
 - the last piece may be smaller than the rest,
@@ -124,7 +124,7 @@ fill the link's capacity.
 
 A picture makes this explanation a lot more pleasant:
 
-![download pipelining benefits](/images/request-pipeline.png)
+![download pipelining benefits](/images/request-pipeline.svg)
 
 It's clearly visible that in the same amount of time, a lot more requests could
 be fulfilled. This is the number one most important optimization, strongly
@@ -169,7 +169,7 @@ instead increases the request queue size every time a block is received, and
 [stops](https://github.com/mandreyel/cratetorrent/blob/master/cratetorrent/src/peer/state.rs#L300-L316)
 when the download rate isn't increasing much anymore.[^slow_start]
 
-![download pipelining benefits](/images/slow-start.png)
+![download pipelining benefits](/images/slow-start.svg)
 
 With each served request, more requests are sent, and the connection is getting
 closer to fully using the available bandwidth (the non-blue area is shrinking).
@@ -393,7 +393,7 @@ also the exact capacity of my downlink. Quite good, but it doesn't tell us much.
 
 Testing on localhost, with a single cratetorrent seed and leech, the current
 limit seems to be around 270 MBps. This value is from the second run, making use
-of the seed's saturated read cache. The first run netted around 160-200 MBps.
+of the seed's saturated read cache.
 
 However, CPU usage on the seed is *very* high. Profiling points to the disk read
 function where half of the CPU time is taken up by `preadv` and the other by
