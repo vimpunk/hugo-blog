@@ -16,10 +16,10 @@ optimizations, and some of the insights gained.
 Growing up, torrenting was a big thing around me. I was always curious how it
 worked.
 
-This curiosity only grew after I had gotten into programming and started to
-understand the details. There is a piece of technology that is so effective yet
-simple, that, without any marketing, it gained widespread adoption due simply to
-sheer technical superiority. It just worked and people used it.
+This curiosity only grew after I had gotten into programming and understood more
+details. There is a piece of technology that is so effective yet simple, that,
+without any marketing, it gained widespread adoption due to sheer technical
+superiority. It just worked and people used it.
 
 So why not write one? I did, in C++. It didn't work out. Half-finished,
 unstable, not well tested. Let's forget it.
@@ -76,11 +76,11 @@ This byte sequence is cut up into equal sized _pieces_, usually some multiple of
 16 KiB. Pieces are further cut up into 16 KiB _blocks_. Peers exchange these
 blocks of data and use them to reassemble the torrent's files.[^block_size]
 
-Chunking up pieces enables downloading a piece concurrently from multiple peers,
-thereby potentially finishing the piece sooner. Since a client does not need to
-have the whole torrent to start sharing it with others, a finished piece can
-thus be immediately shared with other peers that don't yet have it. This increases
-availability, a key feature of the protocol.
+Peers can only share with each other the complete pieces they have. However,
+breaking a piece up into blocks enables downloading it from multiple peers,
+thereby potentially completing it sooner. Once complete, the peer can
+immediately share it with other peers, even if it does not have all pieces
+itself. This increases availability, a key feature of the protocol.
 
 A tricky part here is that files are not padded to align with piece boundaries.
 
@@ -136,6 +136,10 @@ request queue size:
 ```rust
 let request_queue_size = download_rate / BLOCK_LEN;
 ```
+
+The 1 second value was chosen for simplicity, but it's a reasonable guess if we
+take the link to mean the full request round-trip from one peer's disk to that
+of another.
 
 ### Slow start
 
@@ -210,8 +214,7 @@ Most of these are separate [tasks](https://docs.rs/tokio/0.2.13/tokio/task)
 (essentially application level [green
 threads](https://en.wikipedia.org/wiki/Green_threads)). Because tasks are
 as good as separate threads from the point of view of the borrow-checker, shared
-access is not permitted without synchronization. There are two ways to work
-around this.
+access is not permitted without synchronization. There are two ways to do that.
 
 ### Task event loop
 
@@ -225,14 +228,14 @@ from other tasks.
 Torrents and peer sessions perform a periodic "tick" (like the tick of a clock),
 once a second currently, to update their internal state and broadcast messages.
 This is when alerts (such as periodic download statistics or "download
-complete") are sent to the library user for example.
+complete") are sent to the library user for example.[^tick_freq]
 
 A torrent's event loop might look like this:
 ```rust
 loop {
     select! {
         // periodic tick
-        _ = loop_timer.select_next_some() => {
+        _ = tick_timer.select_next_some() => {
             self.tick().await?;
         }
         // peers wanting to connect
@@ -272,28 +275,29 @@ I started writing this: do I use
   [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html)
   or full channel round-trips?
 
-To be more concrete, the two entities in question:
-- **piece picker**: keeps track of which pieces we have and which one to pick
-  next. Peer sessions need to interact with it all the time to pick the next
-  piece from peer.
-- **piece downloads**: keeps track of pending downloads. Peer sessions use it to
+To be more concrete, the two entities in question that peer sessions need to
+interact with all the time:
+- **piece picker**: keeps track of what is already downloaded and is used by
+  all sessions to choose which piece to download next.
+- **piece downloads**: the pending downloads. Peer sessions use it to
   continue existing downloads and to administer received blocks.
 
-While it would be possible to keep these in torrent and let peer sessions use
+It would be possible to keep these in torrent and let peer sessions use
 messages to manipulate them, but since they are used in many places, it is more
 straightforward to use locks. Which one was the better overall solution, in
 terms of performance, though? Is there a drastic difference between the two that
 would make choosing one the obvious solution?
 
-I did not trust my intuition so I set up some synthetic benchmarks to simulate
-the two approaches. While not exactly representing the real world, I wanted to
+I did not trust my intuition so I set up a synthetic benchmark to simulate the
+two approaches. While not exactly representing the real world, I wanted to
 have a rough idea to help guide my decision.
 
 It was simple: spawn the specified number of tasks, let each simulate
-a request one block at a time, delay the task some amount of time until
+a "request" one block at a time, delay the task some amount of time while
 "receiving" the block, and finally sending a notification to the main task for
-administration. Then repeat until all pieces are "downloaded." These steps made
-use of the piece picker and the pending downloads in various steps.
+administration. Then repeat until all pieces are "downloaded." (No actual network
+IO took place, hence the quotes.) These steps made use of the piece picker
+and the pending downloads in various steps.
 
 The results:
 - If the delay was set to 0, channels left locks in the dust. The difference was
@@ -331,7 +335,7 @@ are sensible:
   so due to speculative execution mitigations as of late. Use batching where
   possible.
 - However, if possible, avoid copying block buffers, of which there could be
-  many. Copying many 16 KiB buffers is an unwanted cost.
+  many. Copying many 16 KiB buffers is an unnecessary cost.
 
 Thus downloaded blocks of a piece are queued in a write buffer and are
 only written to disk once the piece is complete. This happens using a single
@@ -427,7 +431,7 @@ There is a lot more to come: profiling and optimizing, discussing other
 interesting aspects of both cratetorrent and tokio based apps in general, many
 features, and more.
 
-Stay tuned!
+Stay tuned.[^stay_tuned_how]
 
 ---
 
@@ -477,3 +481,11 @@ Stay tuned!
   messages via channels is very cheap as, depending on the channel
   implementation, it most likely uses a lock-free queue, making it
   probably the only place that CPUs have to synchronize among each other.
+[^stay_tuned_how]: E.g. you can add this blog to your RSS reader, but I'll also
+  be posting to reddit.com/r/rust and news.ycombinator.com.
+[^tick_freq]: Ticks occur once a second because stats don't need to be sent more
+  frequently, and nothing else internally requires more frequent ticks. By the
+  way, most clients update their UI once a second or even once every few
+  seconds, so there is little need to do more work than that. But of course
+  there may be other use cases, so this will likely be configurable in the
+  future. 
