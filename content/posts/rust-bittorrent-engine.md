@@ -69,18 +69,18 @@ connects some peers and begins downloading data.
 
 ### Data representation
 
-A torrent archive may have one or more files. From the point of view of the wire
-protocol, however, they are all just one big contiguous sequence of bytes.
+A torrent archive may have one or more files but from the point of view of the
+wire protocol they are all just one big contiguous sequence of bytes.
 
-This byte sequence is cut up into equal sized _pieces_, usually some multiple of
-16 KiB. Pieces are further cut up into 16 KiB _blocks_. Peers exchange these
-blocks of data and use them to reassemble the torrent's files.[^block_size]
+This byte sequence is cut up into equal sized _pieces_, which are further cut up
+into 16 KiB _blocks_. Peers exchange these blocks of data and use them to
+reassemble the torrent's files.[^block_size]
 
-Peers can only share with each other the complete pieces they have. However,
-breaking a piece up into blocks enables downloading it from multiple peers,
-thereby potentially completing it sooner. Once complete, the peer can
-immediately share it with other peers, even if it does not have all pieces
-itself. This increases availability, a key feature of the protocol.
+A peer can only share the complete pieces it has. However, breaking up a piece
+into blocks enables downloading it from multiple peers, potentially
+completing it sooner. Once complete, the peer can immediately share it with
+other peers, even if it does not have all pieces itself. This increases
+availability, a key feature of the protocol.
 
 A tricky part here is that files are not padded to align with piece boundaries.
 
@@ -188,7 +188,7 @@ can delay the completion of a download by a surprising amount.[^endgame]
 
 Similarly, this issue is also solved--mentioned in the spec, in fact:
 
-While normally blocks are requested from a single peer, blocks in the last
+While normally each block is requested from a single peer, blocks in the last
 pending pieces should be downloaded from all peers, on a "whoever sends it
 first" basis. Once they arrive, requests to the slower peers are simply
 cancelled. This wastes some bandwidth but saves quite a bit of time.
@@ -267,7 +267,7 @@ a breeze to scale the code. But in rare cases it is not the most ergonomic way.
 ### Shared data: channels or locking?
 
 While most tasks are concerned with their own data, peer sessions in a torrent
-need to access and mutate a part of the torrent state.
+need to access or mutate a part of the torrent state.
 
 For read-only shared data (which is the majority), this is a simple `Arc` away.
 But for shared mutable access, this was not so clear when
@@ -275,8 +275,8 @@ I started writing this: do I use
   [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html)
   or full channel round-trips?
 
-To be more concrete, the two entities in question that peer sessions need to
-interact with all the time:
+To be more concrete, the two entities that peer sessions need to interact with
+all the time:
 - **piece picker**: keeps track of what is already downloaded and is used by
   all sessions to choose which piece to download next.
 - **piece downloads**: the pending downloads. Peer sessions use it to
@@ -296,8 +296,7 @@ It was simple: spawn the specified number of tasks, let each simulate
 a "request" one block at a time, delay the task some amount of time while
 "receiving" the block, and finally sending a notification to the main task for
 administration. Then repeat until all pieces are "downloaded." (No actual network
-IO took place, hence the quotes.) These steps made use of the piece picker
-and the pending downloads in various steps.
+IO took place, hence the quotes.)
 
 The results:
 - If the delay was set to 0, channels left locks in the dust. The difference was
@@ -315,8 +314,8 @@ However, I ended up going with the lock based solution, for a few reasons:
   that good enough, for the MVP anyway.
 - There is actually an additional not so trivial to simulate logic around
   downloads: timeouts and salvaging late blocks. It is outside the scope to
-  explain now, but it meant accessing the above data in other places too, which
-  would have made a channels based implementation more convoluted.
+  explain, but it meant accessing the above data in other places that
+  would have made a channels based solution more convoluted.
 
 ### Disk IO
 
@@ -331,11 +330,11 @@ possible_.
 
 In line with this, I made two assumptions to drive my decisions, which I believe
 are sensible:
-- Many context switches (and syscalls) are expensive, and has become even more
+- Many context switches (and syscalls) are expensive and have become even more
   so due to speculative execution mitigations as of late. Use batching where
   possible.
-- However, if possible, avoid copying block buffers, of which there could be
-  many. Copying many 16 KiB buffers is an unnecessary cost.
+- Avoid copying block buffers, of which there could be many. Copying many 16 KiB
+  buffers is an unnecessary cost.
 
 Thus downloaded blocks of a piece are queued in a write buffer and are
 only written to disk once the piece is complete. This happens using a single
@@ -372,10 +371,9 @@ I set this up before writing any of the Rust code. Once I got rolling,
 actually testing exchanging handshakes, sending protocol messages, then a
 partial download, and not long after a full download, were all effortless.
 
-This has worked wonderfully. It allowed me to focus on one feature at a time,
-and leading to fast iteration with the reassurance that the tests got my
-back. For example, I added seeding quite late in the process yet I was able to
-test full downloads way before that.
+This has worked wonderfully. It allowed me to focus on one feature at a time
+which resulted in rapid iteration. For example, I added seeding quite late in
+the process yet I was able to test full downloads way before that.
 
 Another benefit was that even though everything was local and mostly
 reproducible, I was still testing against a real world client. This meant that
@@ -393,12 +391,12 @@ gate.
 
 A real-life download of Ubuntu 20.04 (~2.8 GB), which is a well seeded torrent,
 downloading from 40-50 peers, comes down at ~9 MBps on my network. But that's
-also the exact capacity of my downlink. Quite good, but it doesn't tell us much.
+also the exact capacity of my downlink, so this doesn't tell us much.
 
 Testing on localhost, with a single cratetorrent seed and leech, the current
 limit seems to be around 270 MBps. This value is from the second run, making use
 of the seed's saturated read cache. The first run fluctuated in the range
-160-200 MBps.
+of 160-200 MBps.
 
 However, CPU usage on the seed is *very* high. Profiling points to the disk read
 function where half of the CPU time is taken up by `preadv` and the other by
@@ -467,8 +465,8 @@ Stay tuned.[^stay_tuned_how]
   but it still requires a seek, and while cross-platform, on Windows it is
   actually just a shim over calling `Write::write` repeatedly, which is most
   probably worse than just copying the blocks into a single buffer and performing
-  a single read (due to the cumulative cost of repeatedly context switching into
-  the kernel).
+  a single write (due to the cumulative cost of repeatedly context switching into
+  kernel-space).
 [^lock_contention]: We're talking differences of 150ms versus 25s for large
   number of tasks (in favor of channels). This is not so surprising, however:
   since the actual work done is very little, when there is no delay or the
