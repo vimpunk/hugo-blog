@@ -21,8 +21,8 @@ details. There is a piece of technology that is so effective yet simple, that,
 without any marketing, it gained widespread adoption due to sheer technical
 superiority. It just worked and people used it.
 
-So why not write one? I did, in C++. It didn't work out. Half-finished,
-unstable, not well tested. Let's forget it.
+So why not write one? I tried, in C++. It was never finished and it's probably
+better that way. Let's forget it.
 
 Fast-forward a few years. I got into Rust and needed a familiar playground to
 practice the language. I did what anyone in such a situation would do: I wrote
@@ -58,19 +58,25 @@ among its users.
 
 ### Who's in a torrent?
 
-BitTorrent is not fully decentralized because at the start of the download
-a client needs to know which other clients it can download from. Such other
-clients in the torrent's _swarm_ are called _peers_. Peers that have all the
-data are _seeds_, the rest are _leeches_. A bit of an uncomfortable term.
+The first actor on the stage is the torrent _metainfo_ file. It contains basic
+metadata about the torrent, most importantly its name, its files with their
+paths and lengths, and its _trackers_. These files are usually hosted by
+torrenting sites and this is what you download when starting a torrent.
 
-At the beginning of a download, a client asks a central host about peers to
-bootstrap the download. These hosts are called _trackers_.[^dht] Then it
-connects some peers and begins downloading data.
+So what are these trackers? While the download of the content itself is fully
+decentralized, a client needs to know which other clients it can download from.
+Such other clients in the torrent's _swarm_ are called _peers_. Peers that have
+all the data are _seeds_, the rest are _leeches_. A bit of an uncomfortable
+term.
+
+Therefore at the beginning of a download a client asks trackers about
+peers. Trackers are the only centralized part of the protocol.[^dht] Once done,
+the client connects these peers and begins downloading data.
 
 ### Data representation
 
-A torrent archive may have one or more files but from the point of view of the
-wire protocol they are all just one big contiguous sequence of bytes.
+A torrent may have one or more files but from the point of view of the wire
+protocol they are all just one big contiguous sequence of bytes.
 
 This byte sequence is cut up into equal sized _pieces_, which are further cut up
 into 16 KiB _blocks_. Peers exchange these blocks of data and use them to
@@ -95,18 +101,18 @@ files. The logic can get quite gnarly here if done optimally.[^file_padding]
 
 ### The peer protocol
 
-After the client connects to a peer via TCP, they exchange
-handshakes. Then, one or both of them tell the other that it can
-start to request blocks. The client then makes a request for a block in some
-piece it chose[^pick_piece], its peer sends it, the client saves it and requests
-another block. Repeat until finished.
+- After the client connected the peer via TCP, they exchange handshakes.
+- One or both tells the other that it can start requesting blocks.
+- The client then requests a block from a piece it chose[^pick_piece], its peer sends it,
+  and the client saves it. 
+- Repeat until finished.
 
 That's about it, but perhaps surprising no one, a real world implementation will
 be quite a bit more complex. Let's see some of the complications.
 
 ## Key optimizations
 
-(Nothing premature, promise!)
+(But nothing premature, promise!)
 
 ### Download pipelining
 
@@ -269,17 +275,18 @@ a breeze to scale the code. But in rare cases it is not the most ergonomic way.
 While most tasks are concerned with their own data, peer sessions in a torrent
 need to access or mutate a part of the torrent state.
 
-For read-only shared data (which is the majority), this is a simple `Arc` away.
-But for shared mutable access, this was not so clear when
-I started writing this: do I use
-  [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html)
-  or full channel round-trips?
+For read-only shared data (which is the majority), this is a simple
+[`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html) away.  But for
+shared mutable access, this was not so clear when
+I started: do I use
+  [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html) or full
+  channel round-trips?
 
 To be more concrete, the two entities that peer sessions need to interact with
 all the time:
 - **piece picker**: keeps track of what is already downloaded and is used by
   all sessions to choose which piece to download next.
-- **piece downloads**: the pending downloads. Peer sessions use it to
+- **piece downloads**: the pending downloads. It is used to
   continue existing downloads and to administer received blocks.
 
 It would be possible to keep these in torrent and let peer sessions use
@@ -316,6 +323,9 @@ However, I ended up going with the lock based solution, for a few reasons:
   downloads: timeouts and salvaging late blocks. It is outside the scope to
   explain, but it meant accessing the above data in other places that
   would have made a channels based solution more convoluted.
+
+I'll go into more detail in a dedicated post as I feel this might be of
+interest.
 
 ### Disk IO
 
@@ -389,29 +399,19 @@ doing), but without any micro-optimization, only a little profiling, and mostly
 just sane architectural decisions, the performance is quite good out of the
 gate.
 
-A real-life download of Ubuntu 20.04 (~2.8 GB), which is a well seeded torrent,
-downloading from 40-50 peers, comes down at ~9 MBps on my network. But that's
-also the exact capacity of my downlink, so this doesn't tell us much.
+A real-life download of Ubuntu 20.04 (~2.8 GB):
+- with 40-50 peers;
+- 20% CPU usage on the leech;
+- downlink capacity is around 9 MBps;
+- and so is the download rate: 9 MBps.
 
-Testing on localhost, with a single cratetorrent seed and leech, the current
-limit seems to be around 270 MBps. This value is from the second run, making use
-of the seed's saturated read cache. The first run fluctuated in the range
-of 160-200 MBps.[^gigabit_thruput]
-
-However, CPU usage on the seed is *very* high. Profiling points to the disk read
-function where half of the CPU time is taken up by `preadv` and the other by
-`__memset_avgx2__erms`. I have a suspicion as to what this might be but I'll
-leave this for another time.
-
----
-
-For comparison, with the same setup Transmission maxed out at 35 MBps! That's
-a 5-7x difference, and my seeding implementation isn't even optimized. (I made sure
-to turn off Transmission's upload rate limiting.)
-
-But this is by no means meant to be a shootout. Maybe one day I will return
-to a more thorough performance showdown that includes other clients...including
-libtorrent. :)
+The above didn't tell us much. What about the **theoretical limit**?
+- On localhost, using the virtual loopback device;
+- with 1 cratetorrent seed and leech:
+- 160-20 MBps on the first run and 270 MBps on the second with saturated caches.
+- Caveat: 100% CPU usage on the seed.[^high_cpu]
+- The same setup with Transmission (with rate limiting turned off), maxed out at
+  35 MBps! That's a 4-7x diff! But I'll do a proper showdown at some point. :)
 
 ## You can try it out!
 
@@ -431,6 +431,13 @@ Use `libtorrent` or something else if you want a battle tested solution.
 There is a lot more to come: profiling and optimizing, discussing other
 interesting aspects of both cratetorrent and tokio based apps in general, many
 features, and more.
+
+Also, I was asked on reddit whether the current design is
+theoretically suitable for gigabit thruputs (125 MBps). As per the above, it
+seems so! But it is unlikely in practice: finding a seed that can push these
+numbers, ISP throttling, slow networking hardware, etc. But I'm confident I can
+take this even further--as said, the code hasn't really been optimized. What
+about _gigabyte_ thruputs?
 
 Stay tuned.[^stay_tuned_how]
 
@@ -490,8 +497,6 @@ Stay tuned.[^stay_tuned_how]
   seconds, so there is little need to do more work than that. But of course
   there may be other use cases, so this will likely be configurable in the
   future. 
-[^gigabit_thruput]: I was asked on reddit whether the current design is
-  theoretically suitable for gigabit thruputs (125 MBps). It seems so! But it is
-  unlikely in practice: finding a seed that can push these numbers, ISP
-  throttling, slow networking hardware, etc. But I'm confident I can take this
-  even further--as said, the code hasn't really been optimized. What about _gigabyte_ thruputs?
+[^high_cpu]: Profiling points to the disk read routine, with `preadv` and
+  `__memset_avgx2__erms` each taking up about half the CPU time there. I have a
+  suspicion as to what this might be but I'll leave this for another time.
