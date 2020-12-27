@@ -38,7 +38,7 @@ So how _do_ torrents work?
 
 A brief overview of the BitTorrent V1
 protocol follows. For those familiar, feel free to skip to the [next
-section](#interesting-optimizations).
+section](#key-optimizations).
 
 ### What is it?
 
@@ -396,7 +396,7 @@ also the exact capacity of my downlink, so this doesn't tell us much.
 Testing on localhost, with a single cratetorrent seed and leech, the current
 limit seems to be around 270 MBps. This value is from the second run, making use
 of the seed's saturated read cache. The first run fluctuated in the range
-of 160-200 MBps.
+of 160-200 MBps.[^gigabit_thruput]
 
 However, CPU usage on the seed is *very* high. Profiling points to the disk read
 function where half of the CPU time is taken up by `preadv` and the other by
@@ -420,8 +420,11 @@ Really! There is both a crate (or library), as well as a _very_ anemic CLI app.
 However, there are some notable **limitations**:
 - It only works on Linux at the moment, due to the above mentioned use of
   Linux-only syscalls.[^linux_only]
-- It's also missing many features that a fully baked torrent client would have.
-  Use `libtorrent` or something else if you want a battle tested solution.
+- It's missing many features that a fully baked torrent client would have.
+- There are no facilities to _limit_ resource usage (e.g. backpressure or rate
+  limiting), so it may not be suitable for slow systems.
+
+Use `libtorrent` or something else if you want a battle tested solution.
 
 ## What's next?
 
@@ -487,3 +490,8 @@ Stay tuned.[^stay_tuned_how]
   seconds, so there is little need to do more work than that. But of course
   there may be other use cases, so this will likely be configurable in the
   future. 
+[^gigabit_thruput]: I was asked on reddit whether the current design is
+  theoretically suitable for gigabit thruputs (125 MBps). It seems so! But it is
+  unlikely in practice: finding a seed that can push these numbers, ISP
+  throttling, slow networking hardware, etc. But I'm confident I can take this
+  even further--as said, the code hasn't really been optimized. What about _gigabyte_ thruputs?
