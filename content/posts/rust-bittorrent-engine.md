@@ -212,11 +212,18 @@ backed blocking IO on the disk side. It uses
 [Tokio](https://github.com/tokio-rs/tokio) for both, the de facto async IO
 runtime in Rust.
 
-The engine's main components are depicted here:
+The engine's main components are:
+- The **engine** itself, which manages torrents and executes the library user's
+  commands.
+- One or more **torrents**, each corresponding to a single torrent
+  upload/download. They manage their peers and trackers.
+- Torrents have an arbitrary number of **peer sessions**, which represent
+  connections with peers from start to finish. This entity implements the
+  BitTorrent wire protocol and is as such on the lowest layer.
+- **Disk IO** is handled by an entity of its own, for clarity and separation of
+  concerns.
 
-![architecture diagram](/images/cratetorrent-archi.svg)
-
-Most of these are separate [tasks](https://docs.rs/tokio/0.2.13/tokio/task)
+All of these are separate [tasks](https://docs.rs/tokio/0.2.13/tokio/task)
 (essentially application level [green
 threads](https://en.wikipedia.org/wiki/Green_threads)). Because tasks are
 as good as separate threads from the point of view of the borrow-checker, shared
