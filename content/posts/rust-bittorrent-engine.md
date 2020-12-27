@@ -411,7 +411,7 @@ The above didn't tell us much. What about the **theoretical limit**?
 - 160-20 MBps on the first run and 270 MBps on the second with saturated caches.
 - Caveat: 100% CPU usage on the seed.[^high_cpu]
 - The same setup with Transmission (with rate limiting turned off), maxed out at
-  35 MBps! That's a 4-7x diff! But I'll do a proper showdown at some point. :)
+  35 MBps! That's 4-7x slower! But I'll do a proper showdown at some point. :)
 
 ## You can try it out!
 
