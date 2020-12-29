@@ -93,6 +93,7 @@ A tricky part here is that files are not padded to align with piece boundaries.
 ![data representation](/images/cratetorrent-data-repr.svg)
 
 This has two consequences:
+
 - the last piece may be smaller than the rest,
 - and pieces may not align with file boundaries, both shown above.
 
@@ -104,7 +105,7 @@ files. The logic can get quite gnarly here if done optimally.[^file_padding]
 - After the client connected the peer via TCP, they exchange handshakes.
 - One or both tells the other that it can start requesting blocks.
 - The client then requests a block from a piece it chose[^pick_piece], its peer sends it,
-  and the client saves it. 
+  and the client saves it.
 - Repeat until finished.
 
 That's about it, but perhaps surprising no one, a real world implementation will
@@ -139,6 +140,7 @@ recommended by the spec itself.
 Cratetorrent uses a running average for the download rate and a simplified model
 of the BDP, by assuming the latency to be a constant 1 second, to get the
 request queue size:
+
 ```rust
 let request_queue_size = download_rate / BLOCK_LEN;
 ```
@@ -162,6 +164,7 @@ doesn't choke the remote host and everything else in between but still makes use
 of the network capacity." Our purposes are similar.
 
 This is roughly what TCP does:
+
 1. At the start of the connection, set the congestion window size to some
    constant.
 2. Send an equivalent number of segments to peer.
@@ -213,6 +216,7 @@ backed blocking IO on the disk side. It uses
 runtime in Rust.
 
 The engine's main components are:
+
 - The **engine** itself, which manages torrents and executes the library user's
   commands.
 - One or more **torrents**, each corresponding to a single torrent
@@ -244,6 +248,7 @@ This is when alerts (such as periodic download statistics or "download
 complete") are sent to the library user for example.[^tick_freq]
 
 A torrent's event loop might look like this:
+
 ```rust
 loop {
     select! {
@@ -270,6 +275,7 @@ the first ready stream. And streams are just types that eventually produce a
 _stream_ of values over time.)
 
 Another component in the engine might send it a message like so:
+
 ```rust
 torrent_cmd_tx.send(torrent::Command::PieceCompletion(Ok(piece)))?;
 ```
@@ -283,14 +289,15 @@ While most tasks are concerned with their own data, peer sessions in a torrent
 need to access or mutate a part of the torrent state.
 
 For read-only shared data (which is the majority), this is a simple
-[`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html) away.  But for
+[`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html) away. But for
 shared mutable access, this was not so clear when
 I started: do I use
-  [locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html) or full
-  channel round-trips?
+[locks](https://docs.rs/tokio/0.2.16/tokio/sync/struct.RwLock.html) or full
+channel round-trips?
 
 To be more concrete, the two entities that peer sessions need to interact with
 all the time:
+
 - **piece picker**: keeps track of what is already downloaded and is used by
   all sessions to choose which piece to download next.
 - **piece downloads**: the pending downloads. It is used to
@@ -313,6 +320,7 @@ administration. Then repeat until all pieces are "downloaded." (No actual networ
 IO took place, hence the quotes.)
 
 The results:
+
 - If the delay was set to 0, channels left locks in the dust. The difference was
   especially drastic as the number of tasks grew.
 - But surprisingly, with as little as 10ms of a delay, the results were pretty
@@ -323,6 +331,7 @@ a takeaway here (and not just for Rust): if you need _very_ high concurrency,
 message passing is the way to go.[^lock_contention]
 
 However, I ended up going with the lock based solution, for a few reasons:
+
 - It's not expected to have much more than a 100 peers per torrent. Most clients
   set a default of 50. So if this solution scales till around 500, I considered
   that good enough, for the MVP anyway.
@@ -347,6 +356,7 @@ possible_.
 
 In line with this, I made two assumptions to drive my decisions, which I believe
 are sensible:
+
 - Many context switches (and syscalls) are expensive and have become even more
   so due to speculative execution mitigations as of late. Use batching where
   possible.
@@ -366,7 +376,6 @@ single buffer.[^write_all_vectored]
 An interesting discussion around this has evolved on
 [reddit](https://www.reddit.com/r/rust/comments/kiah3q/i_wrote_cratetorrent_a_bittorrent_engine_in_rust/ggprwcd).
 
-
 ## How do I test this?
 
 Was the first thing I asked myself before starting. I wasn't sure
@@ -378,6 +387,7 @@ set up proper testing. I knew better now.
 Since I was planning to iterate in small steps, I knew I wouldn't have the full
 feature set necessary to test cratetorrent against another cratetorrent instance
 (requires basically all features present in the MVP). This is what I did:
+
 - I used Docker to create a virtual LAN on my localhost in which I could spawn
   containers that acted as disparate hosts.
 - This is great because it's easy to automate and reproduce.
@@ -407,15 +417,17 @@ just sane architectural decisions, the performance is quite good out of the
 gate.
 
 A real-life download of Ubuntu 20.04 (~2.8 GB):
+
 - with 40-50 peers;
 - 20% CPU usage on the leech;
 - downlink capacity is around 9 MBps;
 - and so is the download rate: 9 MBps.
 
 The above didn't tell us much. What about the **theoretical limit**?
+
 - On localhost, using the virtual loopback device;
 - with 1 cratetorrent seed and leech:
-- 160-20 MBps on the first run and 270 MBps on the second with saturated caches.
+- 160-200 MBps on the first run and 270 MBps on the second with saturated caches.
 - Caveat: 100% CPU usage on the seed.[^high_cpu]
 - The same setup with Transmission (with rate limiting turned off), maxed out at
   35 MBps! That's 4-7x slower! But I'll do a proper showdown at some point. :)
@@ -425,6 +437,7 @@ The above didn't tell us much. What about the **theoretical limit**?
 Really! There is both a crate (or library), as well as a _very_ anemic CLI app.
 
 However, there are some notable **limitations**:
+
 - It only works on Linux at the moment, due to the above mentioned use of
   Linux-only syscalls.[^linux_only]
 - It's missing many features that a fully baked torrent client would have.
@@ -450,60 +463,83 @@ Stay tuned.[^stay_tuned_how]
 
 ---
 
-[^dht]: Nowadays trackers are largely replaced by a _distributed hash-table_, or
-  DHT, a decentralized data-store which in the case of BitTorrent, contains
-  peers and the torrents that they have available. But even that needs to be
-  bootstrapped on the first run.
-[^block_size]: It's interesting that the spec doesn't specify this 16 KiB size,
-  it simply says that this tends to be the value used. So much so that in
-  practice clients deal exclusively in these blocks and will probably reject
-  requests for blocks with different sizes.
-  I'm not quite sure why exactly 16
-  KiB. With today's internet speeds, this value seems a little on the lower end.
-  It was presumably chosen to match internet speeds at the time BitTorrent was
-  created, some 20 years ago.
-[^file_padding]: The [BitTorrent
-  V2](https://www.bittorrent.org/beps/bep_0052.html) addresses this and pads
-  files. 20 years late but still welcome.
-[^pick_piece]: Usually peers pick the pieces that are the least available in the
-  swarm, to--again--increase availability.
+[^dht]:
+    Nowadays trackers are largely replaced by a _distributed hash-table_, or
+    DHT, a decentralized data-store which in the case of BitTorrent, contains
+    peers and the torrents that they have available. But even that needs to be
+    bootstrapped on the first run.
+
+[^block_size]:
+    It's interesting that the spec doesn't specify this 16 KiB size,
+    it simply says that this tends to be the value used. So much so that in
+    practice clients deal exclusively in these blocks and will probably reject
+    requests for blocks with different sizes.
+    I'm not quite sure why exactly 16
+    KiB. With today's internet speeds, this value seems a little on the lower end.
+    It was presumably chosen to match internet speeds at the time BitTorrent was
+    created, some 20 years ago.
+
+[^file_padding]:
+    The [BitTorrent
+    V2](https://www.bittorrent.org/beps/bep_0052.html) addresses this and pads
+    files. 20 years late but still welcome.
+
+[^pick_piece]:
+    Usually peers pick the pieces that are the least available in the
+    swarm, to--again--increase availability.
+
 [^slow_start]: The idea is from libtorrent.
-[^endgame]: Really. With some tests the last few pieces took a staggering 30% of
-  the overall download time!
-[^pwritev_atomicity]: However, the kernel APIs don't guarantee
-  writing the full contents of all buffers to disk. Therefore most
-  implementations, including cratetorrent, call `pwritev` repeatedly until all
-  bytes are written.
-[^linux_only]: It's fairly easy to feature-gate these to Linux and use a
-  different fallback on other platforms. I didn't want to complicate this MVP,
-  but I'll probably do this soon.
-[^write_all_vectored]: There is also
-  [`Write::write_all_vectored`](https://doc.rust-lang.org/std/io/trait.Write.html#tymethod.write),
-  but it still requires a seek, and while cross-platform, on Windows it is
-  actually just a shim over calling `Write::write` repeatedly, which is most
-  probably worse than just copying the blocks into a single buffer and performing
-  a single write (due to the cumulative cost of repeatedly context switching into
-  kernel-space).
-[^lock_contention]: We're talking differences of 150ms versus 25s for large
-  number of tasks (in favor of channels). This is not so surprising, however:
-  since the actual work done is very little, when there is no delay or the
-  number of tasks is very high, most of the time among tasks is spent contending
-  for locks. This doesn't scale because the more tasks there are, less CPU time
-  is given to each as they all need to work on the same data. Even worse,
-  with each mutation, CPUs have to synchronize their caches, further slowing
-  down the program. Whereas with the channels based solution, the data is only
-  ever mutated by one CPU, therefore no cache pollution occurs. And sending
-  messages via channels is very cheap as, depending on the channel
-  implementation, it most likely uses a lock-free queue, making it
-  probably the only place that CPUs have to synchronize among each other.
-[^stay_tuned_how]: E.g. you can add this blog to your RSS reader, but I'll also
-  be posting to reddit.com/r/rust and news.ycombinator.com.
-[^tick_freq]: Ticks occur once a second because stats don't need to be sent more
-  frequently, and nothing else internally requires more frequent ticks. By the
-  way, most clients update their UI once a second or even once every few
-  seconds, so there is little need to do more work than that. But of course
-  there may be other use cases, so this will likely be configurable in the
-  future. 
-[^high_cpu]: Profiling points to the disk read routine, with `preadv` and
-  `__memset_avgx2__erms` each taking up about half the CPU time there. I have a
-  suspicion as to what this might be but I'll leave this for another time.
+[^endgame]:
+    Really. With some tests the last few pieces took a staggering 30% of
+    the overall download time!
+
+[^pwritev_atomicity]:
+    However, the kernel APIs don't guarantee
+    writing the full contents of all buffers to disk. Therefore most
+    implementations, including cratetorrent, call `pwritev` repeatedly until all
+    bytes are written.
+
+[^linux_only]:
+    It's fairly easy to feature-gate these to Linux and use a
+    different fallback on other platforms. I didn't want to complicate this MVP,
+    but I'll probably do this soon.
+
+[^write_all_vectored]:
+    There is also
+    [`Write::write_all_vectored`](https://doc.rust-lang.org/std/io/trait.Write.html#tymethod.write),
+    but it still requires a seek, and while cross-platform, on Windows it is
+    actually just a shim over calling `Write::write` repeatedly, which is most
+    probably worse than just copying the blocks into a single buffer and performing
+    a single write (due to the cumulative cost of repeatedly context switching into
+    kernel-space).
+
+[^lock_contention]:
+    We're talking differences of 150ms versus 25s for large
+    number of tasks (in favor of channels). This is not so surprising, however:
+    since the actual work done is very little, when there is no delay or the
+    number of tasks is very high, most of the time among tasks is spent contending
+    for locks. This doesn't scale because the more tasks there are, less CPU time
+    is given to each as they all need to work on the same data. Even worse,
+    with each mutation, CPUs have to synchronize their caches, further slowing
+    down the program. Whereas with the channels based solution, the data is only
+    ever mutated by one CPU, therefore no cache pollution occurs. And sending
+    messages via channels is very cheap as, depending on the channel
+    implementation, it most likely uses a lock-free queue, making it
+    probably the only place that CPUs have to synchronize among each other.
+
+[^stay_tuned_how]:
+    E.g. you can add this blog to your RSS reader, but I'll also
+    be posting to reddit.com/r/rust and news.ycombinator.com.
+
+[^tick_freq]:
+    Ticks occur once a second because stats don't need to be sent more
+    frequently, and nothing else internally requires more frequent ticks. By the
+    way, most clients update their UI once a second or even once every few
+    seconds, so there is little need to do more work than that. But of course
+    there may be other use cases, so this will likely be configurable in the
+    future.
+
+[^high_cpu]:
+    Profiling points to the disk read routine, with `preadv` and
+    `__memset_avgx2__erms` each taking up about half the CPU time there. I have a
+    suspicion as to what this might be but I'll leave this for another time.
