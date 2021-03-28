@@ -24,7 +24,7 @@ superiority. It just worked and people used it.
 So why not write one? I tried, in C++. It was never finished and it's probably
 better that way. Let's forget it.
 
-Fast-forward a few years. I got into Rust and needed a familiar playground to
+Fast-forward a few years, I got into Rust and needed a familiar playground to
 practice the language. I did what anyone in such a situation would do: I wrote
 another torrent engine. It's torrent engines all the way back.
 
@@ -205,7 +205,7 @@ cancelled. This wastes some bandwidth but saves quite a bit of time.
 ---
 
 These were the most significant design choices in terms of how they affected
-performance. There are a few more but neither you or I have forever. So let's
+performance. There are a few more but neither you nor I have forever. So let's
 move on and see how all this translates into Rust.
 
 ## Architecture
@@ -382,7 +382,7 @@ Was the first thing I asked myself before starting. I wasn't sure
 how to do end-to-end integration and functional testing most easily.
 
 The reason my younger self's first stab at this fell apart is because I hadn't
-set up proper testing. I knew better now.
+had set up proper testing. I knew better now.
 
 Since I was planning to iterate in small steps, I knew I wouldn't have the full
 feature set necessary to test cratetorrent against another cratetorrent instance
